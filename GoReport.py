@@ -7,7 +7,6 @@ GET /api/campaigns/?api_key=
 """
 
 import time
-import requests
 import sys
 import json
 import re
@@ -15,12 +14,24 @@ import csv
 from datetime import datetime
 from user_agents import parse
 from collections import Counter
-from geoip import open_database
-db = open_database("GeoLite2-City.mmdb")  #  Replace with name/location of your database file
 
-API_KEY = "<Your API Key>"
-CAM_ID = sys.argv[1] # Campaign ID for the report
-GP_URL = sys.argv[2] # IP and Port for the GoPhish server, e.g. loclahost:8080
+# Disable the insecure HTTPS warning for the self-signed GoPhish cert
+import requests
+from requests.packages.urllib3.exceptions import InsecureRequestWarning
+requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
+
+# Import the GeoIP lib and open the local database file
+from geoip import open_database
+db = open_database("GeoLite2-City.mmdb")  # Replace with name/location of your database file
+
+if len(sys.argv) > 3:
+	CAM_ID = sys.argv[1] # Campaign ID for the report
+	GP_URL = sys.argv[2] # IP and Port for the GoPhish server, e.g. loclahost:8080
+	API_KEY = sys.argv[3] # Your API key from the admin settings
+	print("Fetching results for Campaign ID {} using:\n{}\n{}".format(CAM_ID, GP_URL, API_KEY))
+else:
+	print("Usage: goreport.py Campaign_ID GoPhish_IP:Port API_Key -- e.g. gophish.py 26 localhost:8080 XXXXXXXXXXX")
+	sys.exit()
 
 def lookupip(ip):
 	"""
@@ -42,15 +53,17 @@ def getplace(lat, lon):
 	j = v.json()
 	components = j['results'][0]['address_components']
 	country = town = None
-	for c in components:
-		if "country" in c['types']:
-			country = c['long_name']
-		if "locality" in c['types']:
-			town = c['long_name']
-		if "administrative_area_level_1" in c['types']:
-			state = c['long_name']
-	print("{}, {}, {}".format(town, state, country))
-	return "{}, {}, {}".format(town, state, country)
+	try:
+		for c in components:
+			if "country" in c['types']:
+				country = c['long_name']
+			if "locality" in c['types']:
+				town = c['long_name']
+			if "administrative_area_level_1" in c['types']:
+				state = c['long_name']
+		return "{} {} {}".format(town, state, country)
+	except:
+		return "None"
 
 
 def get_phish_details(campaign_id, api, url):
@@ -139,8 +152,11 @@ def get_phish_details(campaign_id, api, url):
 
 	return output
 
-
-phish = get_phish_details(CAM_ID, API_KEY, GP_URL)
+try:
+	phish = get_phish_details(CAM_ID, API_KEY, GP_URL)
+except:
+	print("[!] Error: Could not get results. Check your IP address, port, and API key.")
+	sys.exit()
 
 """
 TARGET DATA AND RESULTS
@@ -191,67 +207,70 @@ created = temp[0] + " " + temp[1].split('.')[0]
 temp = phish['completed'].split('T')
 completed = temp[0] + " " + temp[1].split('.')[0]
 
-csv_report = "Results - GoPhish Campaign {} {}.csv".format(CAM_ID, phish['email_template']
+csv_report = "Results - GoPhish Campaign {} {}.csv".format(CAM_ID, phish['email_template'])
 
 """
 CAMPAIGN SUMMARY INFO
 """
-with open(csv_report, 'w', newline='') as csvfile:
-	writer = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-	writer.writerow("Campaign Results Summary")
+with open(csv_report, 'w') as csvfile:
+	writer = csv.writer(csvfile, dialect='excel', delimiter=',', quotechar="'", quoting=csv.QUOTE_MINIMAL)
+	writer.writerow(["Campaign Results Summary"])
 
 	try:
 		attachment = phish['attachment']
 	except:
 		attachment = "None"
 
-	writer.writerow("Created", created)
-	writer.writerow("Started", start_date, start_time)
-	writer.writerow("Completed", completed)
+	writer.writerow(["Created", "{}".format(created)])
+	writer.writerow(["Started", "{} {}".format(start_date.replace(",", ""), start_time)])
+	writer.writerow(["Completed", "{}".format(completed)])
 
-	writer.writerow("What was the subject, From, and email content?")
-	writer.writerow("From", phish['from_address'])
-	writer.writerow("Subject", phish['email_subject'])
-	writer.writerow("URL", phish['url'])
-	writer.writerow("Attachment", attachment)
+	writer.writerow("")
+	writer.writerow(["Campaign details:"])
+	writer.writerow(["From", "{}".format(phish['from_address'])])
+	writer.writerow(["Subject", "{}".format(phish['email_subject'])])
+	writer.writerow(["URL", "{}".format(phish['url'])])
+	writer.writerow(["Attachment", "{}".format(attachment)])
 
-	writer.writerow("What were the results?")
-	writer.writerow("Total Targets", len(targets))
-	writer.writerow("Opened", len(opened))
-	writer.writerow("Clicked", len(clicked))
-	writer.writerow("Entered Data", len(phished))
+	writer.writerow("")
+	writer.writerow(["What were the results?"])
+	writer.writerow(["Total Targets", "{}".format(len(targets))])
+	writer.writerow(["Opened", "{}".format(len(opened))])
+	writer.writerow(["Clicked", "{}".format(len(clicked))])
+	writer.writerow(["Entered Data", "{}".format(len(phished))])
 
-"""
-SUMMARY
-"""
+	"""
+	SUMMARY BEGINS
+	"""
 
-	writer.writerow("The table below summarizes who opened and clicked on emails sent in this campaign.")
-	writer.writerow("Email", "Open", "Click", "Phish")
+	writer.writerow("")
+	writer.writerow(["Summary of opened emails and clicks:"])
+	writer.writerow(["Email", "Open", "Click", "Phish"])
 
 	# Add targets to the results table
 	for target in targets:
 		result = target
 
 		if target in opened:
-			result += "Y"
+			result += ",Y"
 		else:
-			result += "N"
+			result += ",N"
 
 		if target in clicked:
-			result += "Y"
+			result += ",Y"
 		else:
-			result += "N"
+			result += ",N"
 
 		if target in phished:
-			result += "Y"
+			result += ",Y"
 		else:
-			result += "N"
+			result += ",N"
 
-		writer.writerow(result)
+		writer.writerow(["{}".format(result)])
 
-"""
-DETAILED RESULTS
-"""
+	"""
+	DETAILED RESULTS BEGIN
+	"""
 
 	# Lists for browser, OS, and location tables
 	operating_systems = []
@@ -260,7 +279,8 @@ DETAILED RESULTS
 
 	# If they are in targets[], then they get a spot here
 	for target in targets:
-		writer.writerow(target)
+		writer.writerow("")
+		writer.writerow(["{}".format(target)])
 
 		# Get the timestamp of Email sent for target
 		for e in phish['timeline']:
@@ -270,15 +290,15 @@ DETAILED RESULTS
 				sent_date = re.search(reg, temp).group()
 				sent_date = datetime.strptime(sent_date, "%Y-%m-%d")
 				sent_date = sent_date.strftime("%B %d, %Y")
-				reg = re.compile(ur'[0-9]{2}:[0-9]{2}:[0-9]{2}')
+				reg = re.compile(r'[0-9]{2}:[0-9]{2}:[0-9]{2}')
 				sent_time = re.search(reg, temp).group()
 
-				writer.writerow("Sent on {} at {}".format(sent_date, sent_time))
+				writer.writerow(["Sent on {} at {}".format(sent_date.replace(",", ""), sent_time)])
 				"""Example: 2016-08-12T10:39:34.251188714-04:00 """
 
 		if target in opened:
-			writer.writerow("Email Previews")
-			writer.writerow("Time")
+			writer.writerow(["Email Previews"])
+			writer.writerow(["Time"])
 
 			for e in phish['timeline']:
 				if e['event'] == "Email Opened" and e['email'] == target:
@@ -286,8 +306,8 @@ DETAILED RESULTS
 					writer.writerow(temp[0] + " " + temp[1].split('.')[0])
 
 		if target in clicked:
-			writer.writerow("Email Link Clicked")
-			writer.writerow("Time", "IP", "City", "Browser", "Operating System")
+			writer.writerow(["Email Link Clicked"])
+			writer.writerow(["Time", "IP", "City", "Browser", "Operating System"])
 
 			for e in phish['timeline']:
 				if e['event'] == "Clicked Link" and e['email'] == target:
@@ -296,13 +316,13 @@ DETAILED RESULTS
 							temp = e['timestamp'].split('T')
 							result = temp[0] + " " + temp[1].split('.')[0]
 
-							result += r['user_ip']
+							result += ",{}".format(r['user_ip'])
 
 							#coordinates = str(r['user_latitude']) + ", " + str(r['user_longitude'])
 							#coordinates = getplace(str(r['user_latitude']), str(r['user_longitude']))
 							coordinates = lookupip(r['user_ip'])
 							coordinates = getplace(coordinates[0], coordinates[1])
-							result += coordinates
+							result += ",{}".format(coordinates)
 							locations.append(coordinates)
 
 							raw_payload = e['payload']
@@ -311,16 +331,17 @@ DETAILED RESULTS
 
 							user_agent = parse(browser_payload)
 							browser_details = user_agent.browser.family + " " + user_agent.browser.version_string
-							result += browser_details
+							result += ",{}".format(browser_details)
 							browsers.append(browser_details)
 
 							os_details = user_agent.os.family + " " + user_agent.os.version_string
-							result += os_details
+							result += ",{}".format(os_details)
 							operating_systems.append(os_details)
+							writer.writerow([result])
 
 		if target in phished:
-			writer.writerow("Phishgate Data Captured")
-			writer.writerow("Time", "IP", "City", "Browser", "Operating System", "Data Captured")
+			writer.writerow(["Phishgate Data Captured"])
+			writer.writerow(["Time", "IP", "City", "Browser", "Operating System", "Data Captured"])
 
 			for e in phish['timeline']:
 				if e['event'] == "Submitted Data" and e['email'] == target:
@@ -329,10 +350,10 @@ DETAILED RESULTS
 							temp = e['timestamp'].split('T')
 							result += temp[0] + " " + temp[1].split('.')[0]
 
-							result += r['user_ip']
+							result += ", {}".format(r['user_ip'])
 
 							coordinates = str(r['user_latitude']) + ", " + str(r['user_longitude'])
-							result += coordinates
+							result += ", {}".format(coordinates)
 							locations.append(coordinates)
 
 							raw_payload = e['payload']
@@ -359,51 +380,43 @@ DETAILED RESULTS
 							# user_agent.device.family  # Returns 'iPhone'
 
 							browser_details = user_agent.browser.family + " " + user_agent.browser.version_string
-							result += browser_details
+							result += ",{}".format(browser_details)
 							browsers.append(browser_details)
 
 							os_details = user_agent.os.family + " " + user_agent.os.version_string
-							result += os_details
+							result += ",{}".format(os_details)
 							operating_systems.append(os_details)
 
 							data_payload = re.search(r'(?<=payload":{)(.*?)(?=},"browser)', raw_payload)
-							result += data_payload.group()
+							result += ",{}".format(data_payload.group())
+							writer.writerow([result])
 
-"""
-TOP BROWSERS AND GEO IP
-"""
+	"""
+	TOP BROWSERS AND GEO IP BEGIN
+	"""
 
-	unique_browsers = Counter(browsers).keys()
-	seen_browsers = Counter(browsers).values()
+	writer.writerow("")
+	writer.writerow(["Top browsers seen during this campaign:"])
+	writer.writerow(["Browser", "Seen"])
 
-	unique_os = Counter(operating_systems).keys()
-	seen_os = Counter(operating_systems).values()
+	counted_browsers = Counter(browsers)
+	for key, value in counted_browsers.items():
+		writer.writerow(["{},{}".format(key, value)])
 
-	unique_locs = Counter(locations).keys()
-	seen_locs = Counter(locations).values()
+	writer.writerow("")
+	writer.writerow(["Top operating systems seen during this campaign:"])
+	writer.writerow(["Operating System", "Seen"])
 
-	writer.writerow("The following table shows the top browsers used to view this campaign.")
-	writer.writerow("Browser", "Seen")
-	for b in unique_browsers:
-		writer.writerow(b)
+	counted_os = Counter(operating_systems)
+	for key, value in counted_os.items():
+		writer.writerow(["{}".format(key), "{}".format(value)])
 
-	for b in seen_browsers:
-		writer.writerow(str(b))
+	writer.writerow([" "])
+	writer.writerow(["Top locations seen during this campaign:"])
+	writer.writerow(["Location", "Visits"])
 
-	writer.writerow("The following table shows the top operating systems used to view this campaign.")
-	writer.writerow("Operating System", "Seen")
+	counted_locs = Counter(locations)
+	for key, value in counted_locs.items():
+		writer.writerow(["{}".format(key), "{}".format(value)])
 
-	for b in unique_os:
-		writer.writerow(b)
-
-	for b in seen_os:
-		writer.writerow(str(b))
-
-	writer.writerow("The following table shows the top cities.")
-	writer.writerow("Location", "Visits")
-
-	for b in unique_locs:
-		writer.writerow(b)
-
-	for b in seen_locs:
-		writer.writerow(str(b))
+print("[+] Done! Check \'{}\' for your results.".format(csv_report))

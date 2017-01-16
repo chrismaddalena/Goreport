@@ -1,21 +1,27 @@
 # Go Report
 ##### A GoPhish reporting tool
 
-This script accepts your GoPhish campaign ID and IP:port as its only parameter and then performs user-agent parsing, geo IP lookups, and table creation for you.
+This script accepts your GoPhish campaign ID, IP:port, and API key as parameters and then performs user-agent parsing and geo IP lookups. It also generates lists of operating systems, browser types and versions, and locations with counts for the number of times each one was seen throughout the campaign.
 
 ## GoPhish's API
 This script requires the API key for your GoPhish application. Get this key by clicking the Settings tab. The API key will be found on the first page.
 
 ## Script Setup
-
 You need to do a few things to get started:
 
 * Run pip install -r requirements.txt
 * Download a fresh and up-to-date copy of the free MaxMind Geo IP database
+* Get your API key ready
 * Get your campaign ID number by clicking your campaign results and referencing the URL (it's the number at the end)
 
-## Additional Information
+## Sample Usage
+Assuming GoPhish was on another server and you are using SSH port forwarding with port 8080:
 
+python goreport.py 26 localhost:8080 <Your_API_Key>
+
+That would fetch the results of campaign 26 from https://localhost:8080/api/campaigns/26/?api_key=<Your_API_Key>
+
+## Additional Information
 GoPhish performs it's own geo IP lookups and returns latitude and longitude. This works alright, but geo IP is often unreliable as IPs change hands or are reallocated.
 
 GoPhish uses free lookup tools that are generally accurate or close, but sometimes get things very wrong. I can't give specific examples because they are all IPs tied to various clients, but there is the general situation you may run into. GoPhish might identify an IP as being related to Kansas. With this IP, GoPhish's location lookup will be verified by a number of geo IP tools. However, it is quite wrong. This IP now belongs to an organization in Massachusetts.
