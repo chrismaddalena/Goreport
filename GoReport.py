@@ -279,7 +279,7 @@ class GPCampaign(object):
 		self.total_sent = sent_counter
 		self.total_opened = opened_counter
 		self.total_clicked = click_counter
-		self.submitted_counter = submitted_counter
+		self.total_submitted = submitted_counter
 
 	def lookup_ip(self, ip):
 		"""Check the GeoLite database for a location for the provided IP address.
@@ -469,7 +469,7 @@ class GPCampaign(object):
 							# Check if GoPhish's coordinates agree with these MMDB results
 							result += ",{}".format(self.compare_ip_coordinates(target.latitude, target.longitude, mmdb_latitude, mmdb_longitude, event.details['browser']['address']))
 						else:
-							result += "IP address look-up returned None"
+							result += ",IP address look-up returned None"
 
 						# Parse the user-agent string and add browser and OS details to the results row
 						user_agent = parse(event.details['browser']['user-agent'])
@@ -494,10 +494,10 @@ class GPCampaign(object):
 					if event.message == "Submitted Data" and event.email == target.email:
 						# Parse the timestmap and add the time to the results row
 						temp = event.time.split('T')
-						result += temp[0] + " " + temp[1].split('.')[0]
+						result = temp[0] + " " + temp[1].split('.')[0]
 
 						# Add the IP address to the results row
-						result += ", {}".format(event.details['browser']['address'])
+						result += ",{}".format(event.details['browser']['address'])
 
 						# Get the location data and add to results row
 						# This is based on the IP address pulled from the browser for this event
@@ -508,7 +508,7 @@ class GPCampaign(object):
 							# Check if GoPhish's coordinates agree with these MMDB results
 							result += self.compare_ip_coordinates(target.latitude, target.longitude, mmdb_latitude, mmdb_longitude)
 						else:
-							result += "IP address look-up returned None"
+							result += ",IP address look-up returned None"
 
 						# Parse the user-agent string and add browser and OS details to the results row
 						user_agent = parse(event.details['browser']['user-agent'])
@@ -519,9 +519,17 @@ class GPCampaign(object):
 						os_details = user_agent.os.family + " " + user_agent.os.version_string
 						result += ",{}".format(os_details)
 
-						data_payload = events.details # TODO: Test with submitted data for this
-						result += ",{}".format(data_payload.group())
+						# Get just the submitted data from the event's payload
+						submitted_data = ""
+						data_payload = event.details['payload']
+						# Get all of the submitted data
+						for key, value in data_payload.items():
+							# To get just subnitted data, we drop the 'rid' key
+							if not key == "rid":
+								submitted_data += "{}:{}   ".format(key, str(value).strip("[").strip("]"))
 
+						result += ",{}".format(submitted_data)
+						print(result)
 						# Write the results row to the report for this target
 						writer.writerow(["Submitted Data Captured"])
 						writer.writerow(["Time", "IP", "City", "Browser", "Operating System", "Data Captured"])
@@ -655,24 +663,25 @@ Entered Data: {}
 		counter = 1
 		for target in self.results:
 			table.add_row()
-			temp_cell = table.cell(counter,0)
-			temp_cell.text = target.email
+			email_cell = table.cell(counter,0)
+			email_cell.text = "{}".format(target.email)
+			print(target.email)
 
-			if target in self.targets_opened:
+			if target.email in self.targets_opened:
 				temp_cell = table.cell(counter,1)
 				temp_cell.text = "Y"
 			else:
 				temp_cell = table.cell(counter,1)
 				temp_cell.text = "N"
 
-			if target in self.targets_clicked:
+			if target.email in self.targets_clicked:
 				temp_cell = table.cell(counter,2)
 				temp_cell.text = "Y"
 			else:
 				temp_cell = table.cell(counter,2)
 				temp_cell.text = "N"
 
-			if target in self.targets_submitted:
+			if target.email in self.targets_submitted:
 				temp_cell = table.cell(counter,3)
 				temp_cell.text = "Y"
 			else:
@@ -842,7 +851,7 @@ Entered Data: {}
 
 				if event.message == "Submitted Data" and event.email == target.email:
 					submitted_table.add_row()
-					timestamp = table.cell(counter, 0)
+					timestamp = submitted_table.cell(submitted_counter, 0)
 					temp = event.time.split('T')
 					timestamp.text = temp[0] + " " + temp[1].split('.')[0]
 
@@ -856,7 +865,8 @@ Entered Data: {}
 						# Check if GoPhish's coordinates agree with these MMDB results
 						event_location.text = "{}".format(self.compare_ip_coordinates(target.latitude, target.longitude, mmdb_latitude, mmdb_longitude))
 					else:
-						result += "IP address look-up returned None"
+						print("[!] MMDB lookup returned no location results!")
+						event_location.text = "IP address look-up returned None"
 
 					# Parse the user-agent string and add browser and OS details to the results row
 					user_agent = parse(event.details['browser']['user-agent'])
@@ -869,9 +879,17 @@ Entered Data: {}
 					os_details = user_agent.os.family + " " + user_agent.os.version_string
 					op_sys.text = "{}".format(os_details)
 
+					# Get just the submitted data from the event's payload
+					submitted_data = ""
 					data = submitted_table.cell(submitted_counter, 5)
-					data_payload = events.details # TODO: Test with submitted data for this
-					data.text = "{}".format(data_payload.group())
+					data_payload = event.details['payload']
+					# Get all of the submitted data
+					for key, value in data_payload.items():
+						# To get just subnitted data, we drop the 'rid' key
+						if not key == "rid":
+							submitted_data += "{}:{}   ".format(key, str(value).strip("[").strip("]"))
+
+					data.text = "{}".format(submitted_data)
 
 					submitted_counter += 1
 
