@@ -1,3 +1,5 @@
-python-geoip
+python-docx
+maxminddb-geolite2
 requests
-user-agent
+gophish
+configparser
