@@ -3,3 +3,5 @@ maxminddb-geolite2
 requests
 gophish
 configparser
+python-dateutil
+user-agents
