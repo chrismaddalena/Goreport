@@ -5,3 +5,4 @@ gophish
 configparser
 python-dateutil
 user-agents
+click

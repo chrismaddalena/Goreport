@@ -17,23 +17,21 @@ for browser versions, operating systems, and locations.
 
 # Basic imports
 from gophish import Gophish
+import click
 import sys
 import csv
 import configparser
-
+import time
 # Imports for statistics, e.g. browsera and operating systems
 from user_agents import parse
 from collections import Counter
-
 # Imports for web requests, e.g. Google Maps API for location data
 # Disables the insecure HTTPS warning for the self-signed GoPhish certs
 import requests
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
-
 # Import the MaxmInd's GeoLite for IP address GeoIP look-ups
 from geolite2 import geolite2
-
 # Imports for writing the Word.doc report
 from docx import *
 from docx.shared import *
@@ -43,33 +41,41 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.shared import OxmlElement, qn
 
 
-usage = "Usage: goreport.py Campaign_ID OUTPUT_TYPE -- e.g. gophish.py 26 csv"
-
-# Collect the command line arguments for campaign ID and report type
-if len(sys.argv) > 2:
-	CAM_ID = sys.argv[1] # Campaign ID for the report
-	OUTPUT_TYPE = sys.argv[2]
-	try:
-		CAM_ID = int(CAM_ID)
-	except:
-		print("[!] You entered an invalid campaign ID! {} will not do!".format(CAM_ID))
-		print(usage)
-		sys.exit()
-
-	if OUTPUT_TYPE == "csv" or OUTPUT_TYPE == "word":
-		pass
-	else:
-		print("[!] Invalid output type sepcified, {}. Select either csv or word.".format(OUTPUT_TYPE))
-else:
-	print(usage)
-	sys.exit()
-
 # Open the config file to make sure it exists and is readable
 try:
 	config = configparser.ConfigParser()
 	config.read('gophish.ini')
 except Exception as e:
 	print("[!] Could not open the /gophish.ini config file -- make sure it exists and is readable.")
+	print("[!] Details: {}".format(e))
+	sys.exit()
+
+
+def ConfigSectionMap(section):
+	"""This function helps by reading accepting a config file section, from gophish.ini,
+	and returning a dictionary object that can be referenced for configuration settings.
+	"""
+	section_dict = {}
+	options = config.options(section)
+	for option in options:
+		try:
+			section_dict[option] = config.get(section, option)
+			if section_dict[option] == -1:
+				DebugPrint("[-] Skipping: {}".format(option))
+		except:
+			print("[!] There was an error with: {}".format(option))
+			section_dict[option] = None
+	return section_dict
+
+
+# Read in the values from the config file
+try:
+	GP_HOST = ConfigSectionMap("GoPhish")['gp_host']
+	API_KEY = ConfigSectionMap("GoPhish")['api_key']
+	# TODO: Allow specifying an MMDB file location
+	# MMDB = ConfigSectionMap("GeoIP")['mmdb_path']
+except Exception as e:
+	print("[!] There was a problem reading values from the gophish.ini file!")
 	print("[!] Details: {}".format(e))
 	sys.exit()
 
@@ -84,32 +90,68 @@ def set_column_width(column, width):
 		cell.width = width
 
 
-def ConfigSectionMap(section):
-    """This function helps by reading accepting a config file section, from gophish.ini,
-    and returning a dictionary object that can be referenced for configuration settings.
-    """
-    section_dict = {}
-    options = config.options(section)
-    for option in options:
-        try:
-            section_dict[option] = config.get(section, option)
-            if section_dict[option] == -1:
-                DebugPrint("[-] Skipping: {}".format(option))
-        except:
-            print("[!] There was an error with: {}".format(option))
-            section_dict[option] = None
-    return section_dict
+class AliasedGroup(click.Group):
+	"""Allows commands to be called by their first unique character."""
+
+	def get_command(self, ctx, cmd_name):
+		"""
+		Allows commands to be called by thier first unique character
+		:param ctx: Context information from click
+		:param cmd_name: Calling command name
+		:return:
+		"""
+		rv = click.Group.get_command(self, ctx, cmd_name)
+		if rv is not None:
+			return rv
+		matches = [x for x in self.list_commands(ctx)
+			if x.startswith(cmd_name)]
+		if not matches:
+			return None
+		elif len(matches) == 1:
+			return click.Group.get_command(self, ctx, matches[0])
+		ctx.fail('Too many matches: %s' % ', '.join(sorted(matches)))
 
 
-# Read in the values from the config file
-try:
-	GP_HOST = ConfigSectionMap("GoPhish")['gp_host']
-	API_KEY = ConfigSectionMap("GoPhish")['api_key']
-	MMDB = ConfigSectionMap("GeoIP")['mmdb_path']
-except Exception as e:
-	print("[!] There was a problem reading values from the gophish.ini file!")
-	print("[!] Details: {}".format(e))
-	sys.exit()
+# Create the help option for CLICK
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+@click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
+
+
+def GoReport():
+	"""
+	 :::=====  :::====  :::====  :::===== :::====  :::====  :::====  :::====
+	 :::       :::  === :::  === :::      :::  === :::  === :::  === :::====
+	 === ===== ===  === =======  ======   =======  ===  === =======    ===
+	 ===   === ===  === === ===  ===      ===      ===  === === ===    ===
+	  =======   ======  ===  === ======== ===       ======  ===  ===   ===
+	"""
+	# Everything starts here
+	pass
+
+
+# Setup our CLICK arguments
+# TODO: Arguments/flags for getting quick statistics, like percentages and quick numbers (no report output)
+@GoReport.command(name='report', short_help="Generate a full report for the selected campaign -- either CSV or DOCX.")
+@click.option('--id', help="The target campaign's ID.", required=True)
+@click.option('--format', type=click.Choice(['csv', 'word']), help="Use this option to choose between report formats.", required=True)
+@click.pass_context
+def parse_options(self, id, format):
+	"""A quick function to check the provided options and kick-off GoReport."""
+	# CAM_ID is double declared like this so there are no complaints if this check fails
+	CAM_ID = id
+	try:
+		# Test to make sure the provided ID is really an integer
+		CAM_ID = int(CAM_ID)
+	except:
+		print("[!] You entered an invalid campaign ID! {} will not do!".format(CAM_ID))
+		sys.exit()
+
+	# Set our report format, csv or word
+	# OUTPUT_TYPE = format
+
+	# Kick-off a new campaign object with our options
+	gophish = GPCampaign(CAM_ID, format)
+	gophish.run()
 
 
 class GPCampaign(object):
@@ -155,38 +197,71 @@ class GPCampaign(object):
 	locations = []
 	ip_addresses = []
 
-	# Output filename
+	# Output options
+	OUTPUT_TYPE = None
 	output_csv_report = None
 	output_word_report = None
 
-	def __init__(self):
+	def __init__(self, CAM_ID, OUTPUT_TYPE):
 		"""Initiate the connection to the GoPhish server with the provided host, port, and API key"""
-		# Connect to API
+		self.OUTPUT_TYPE = OUTPUT_TYPE
 		try:
+			# Connect to the GoPhish API
 			print("[+] Connecting to GoPhish at {}".format(GP_HOST))
 			self.api = Gophish(API_KEY, host=GP_HOST, verify=False)
-			# Request campaign details
-			print("[+] We will be fetching results for Campaign ID {}...".format(CAM_ID))
-			self.campaign = self.api.campaigns.get(campaign_id=CAM_ID)
 		except Exception as e:
-			print("[!] There was a problem rconnecting to GoPhish! Check your gophish.ini to confirm host, port, annd API key.")
+			print("[!] There was a problem connecting to GoPhish! Check your gophish.ini to confirm host, port, annd API key.")
 			print("[!] Details: {}".format(e))
 			sys.exit()
 
-		# Create the MaxMInd GeoIP reader for the CeoLite2-City.mmdb database file
+		try:
+			# Request campaign details
+			print("[+] We will now be fetching results for Campaign ID {}...".format(CAM_ID))
+			self.campaign = self.api.campaigns.get(campaign_id=CAM_ID)
+			print("[+] We have successfully pulled the campaign details for ID {}!".format(CAM_ID))
+		except Exception as e:
+			print("[!] There was a problem fetching this campaign ID's details. Are you sure campaign {} is right?".format(CAM_ID))
+			print("[!] Details: {}".format(e))
+			sys.exit()
+
+		# Create the MaxMind GeoIP reader for the CeoLite2-City.mmdb database file
 		self.geoip_reader = geolite2.reader()
+
+	def print_banner(self):
+		"""Just a function to print sweet ASCII art banners."""
+ # 	print("""
+ # :::=====  :::====  :::====  :::===== :::====  :::====  :::====  :::====\n
+ # :::       :::  === :::  === :::      :::  === :::  === :::  === :::====\n
+ # === ===== ===  === =======  ======   =======  ===  === =======    ===  \n
+ # ===   === ===  === === ===  ===      ===      ===  === === ===    ===  \n
+ #  =======   ======  ===  === ======== ===       ======  ===  ===   ===  \n
+ #  		""")
+
+		print(
+		"""
+  #####         ######                                    \n
+ #     #  ####  #     # ###### #####   ####  #####  ##### \n
+ #       #    # #     # #      #    # #    # #    #   #   \n
+ #  #### #    # ######  #####  #    # #    # #    #   #   \n
+ #     # #    # #   #   #      #####  #    # #####    #   \n
+ #     # #    # #    #  #      #      #    # #   #    #   \n
+  #####   ####  #     # ###### #       ####  #    #   # \n
+		""")
 
 	def run(self):
 		"""Run everything to process the target campaign."""
 		# Collect campaign details and process data
+		self.print_banner()
 		self.collect_campaign_details()
 		self.parse_results()
 		self.parse_timeline_events()
 		# Generate the report
-		if OUTPUT_TYPE == "csv":
+		if self.OUTPUT_TYPE == "csv":
+			print("[+] Building the report -- you selected a csv report.")
 			self.output_csv_report = self._build_output_csv_file_name()
 			self.write_csv_report()
-		else:
+		elif self.OUTPUT_TYPE == "word":
+			print("[+] Building the report -- you selected a Word/docx report.")
 			self.output_word_report = self._build_output_word_file_name()
 			self.write_word_report()
 
@@ -226,13 +301,14 @@ class GPCampaign(object):
 		self.cam_from_address = self.smtp.from_address
 		self.cam_smtp_host = self.smtp.host
 
-		# Collect the template and landing page information
+		# Collect the template information
 		self.template = self.campaign.template
-		self.page = self.campaign.page
-
 		self.cam_subject_line = self.template.subject
 		self.cam_template_name = self.template.name
 		self.cam_template_attachments = self.template.attachments
+
+		# Collect the landing page information
+		self.page = self.campaign.page
 		self.cam_page_name = self.page.name
 		self.cam_redirect_url = self.page.redirect_url
 		self.cam_capturing_passwords = self.page.capture_passwords
@@ -253,7 +329,7 @@ class GPCampaign(object):
 				self.ip_addresses.append(x.ip)
 
 	def parse_timeline_events(self):
-		"""Process the timeline model to colelct basic data, like total clicks.
+		"""Process the timeline model to collect basic data, like total clicks.
 
 		The timeline model contains all events that occured during the campaign.
 		"""
@@ -275,7 +351,7 @@ class GPCampaign(object):
 			elif x.message == "Submitted Data":
 				submitted_counter += 1
 				self.targets_submitted.append(x.email)
-		# Assign the counter values to
+		# Assign the counter values to our tracking lists
 		self.total_sent = sent_counter
 		self.total_opened = opened_counter
 		self.total_clicked = click_counter
@@ -315,6 +391,7 @@ class GPCampaign(object):
 		v = requests.get(url)
 		j = v.json()
 		try:
+			# Get the first set of 'address_components' from the JSON results
 			components = j['results'][0]['address_components']
 			country = town = None
 			for c in components:
@@ -324,6 +401,8 @@ class GPCampaign(object):
 					town = c['long_name']
 				if "administrative_area_level_1" in c['types']:
 					state = c['long_name']
+			# TODO: Remove the periods and allow for commas for the Word output
+			# The commas are a problem for csv output, but can be replaced for that report format
 			return "{}. {}. {}".format(town, state, country)
 		except:
 			# return "None"
@@ -339,7 +418,7 @@ class GPCampaign(object):
 			return target_ip
 		else:
 			# We have an IP mismatch! Hard to tell what this might be.
-			print("[!] Interesting Event: Browser and target IP address do not match!")
+			print("[!] Interesting Event: The target's IP does not match their browser's IP!")
 			print("L.. This target's ({}) URL was clicked from a browser at {} -- email may have been forwarded or the target is home/using VPN/etc. Interesting!".format(target_ip, browser_ip))
 			# This is an IP address not included in the results model, so we add it to our list here
 			self.ip_addresses.append(browser_ip)
@@ -353,22 +432,41 @@ class GPCampaign(object):
 		if target_latitude == mmdb_latitude and target_longitude == mmdb_longitude:
 			# Coordinates match what GoPhish recorded, so query Google Maps for details
 			coordinates_location = self.get_google_location_data(target_latitude, target_longitude)
-			self.locations.append(coordinates_location)
-			return coordinates_location
+			if not coordinates_location is None:
+				self.locations.append(coordinates_location)
+				return coordinates_location
+			else:
+				return "Google timeout"
 		else:
 			# MaxMind and GoPhish have different coordinates, so this is a tough spot
 			# Both locations can be recorded for investigation, but what to do for location statistics?
 			# It was decided both would be recorded as one location with an asterisk, flagged for investigation
 			print("[!] Warning: Location coordinates mis-match between MaxMind and GoPhish for {}. Look for location with * to investigate and pick the right location.".format(ip_address))
 			coordinates_location = self.get_google_location_data(target_latitude, target_longitude)
-			coordinates_location += "     ALTERNATE:" + self.get_google_location_data(mmdb_latitude, mmdb_longitude)
+			# Sleep between checks to avoid bad Results
+			# In cases with a lot of mismatches Google seems to return no reuslts for back-to-back requests
+			time.sleep(2)
+			alt_coordinates_location = self.get_google_location_data(mmdb_latitude, mmdb_longitude)
+			if not alt_coordinates_location is None and not coordinates_location is None:
+				coordinates_location += "     ALTERNATE:{}".format(alt_coordinates_location)
+			elif not coordinates_location is None and alt_coordinates_location is None:
+				coordinates_location += "     ALTERNATE: MaxMind returned No Results"
+			elif coordinates_location is None and not alt_coordinates_location is None:
+				coordinates_location = alt_coordinates_location
+
 			self.locations.append(coordinates_location + " *")
 			return "{}".format(coordinates_location + " *")
 
 	def write_csv_report(self):
-		"""Assemble and output the csv file report."""
+		"""Assemble and output the csv file report.
+
+		Throughout this function, results are assembled by adding commas and Then
+		adding to the results string, i.e. 'result_A' and then 'result_A' += ',result_B'.
+		This is so the result can be written to the csv file and have the different
+		results end up in the correct columns.
+		"""
 		with open(self.output_csv_report, 'w') as csvfile:
-			# Create csv writer
+			# Create the csv writer
 			writer = csv.writer(csvfile, dialect='excel', delimiter=',', quotechar="'", quoting=csv.QUOTE_MINIMAL)
 
 			# Write a campaign summary at the top of the report
@@ -376,6 +474,7 @@ class GPCampaign(object):
 			writer.writerow(["Status", "{}".format(self.cam_status)])
 			writer.writerow(["Created", "{}".format(self.created_date)])
 			writer.writerow(["Started", "{}".format(self.launch_date)])
+			# If the campaign has been completed, we will record that, too
 			if self.cam_status == "Completed":
 				writer.writerow(["Completed", "{}".format(self.completed_date)])
 			# Write the campaign details -- email details and template settings
@@ -409,17 +508,17 @@ class GPCampaign(object):
 			# Add targets to the results table
 			for target in self.results:
 				result = target.email
-
+				# Chck if this target was recorded as viewing the email (tracking image)
 				if target.email in self.targets_opened:
 					result += ",Y"
 				else:
 					result += ",N"
-
+				# Check if this target clicked the link
 				if target.email in self.targets_clicked:
 					result += ",Y"
 				else:
 					result += ",N"
-
+				# Check if this target submitted data
 				if target.email in self.targets_submitted:
 					result += ",Y"
 				else:
@@ -488,7 +587,7 @@ class GPCampaign(object):
 						writer.writerow([result])
 
 					# Now we have events for submitted data. A few notes on this:
-					# There is no epxectation of data being submitted without a Clicked Link event
+					# There is no expectation of data being submitted without a Clicked Link event
 					# Assuming that, the following process does NOT flag IP
 					# mismatches or add to the list of seen locations, OSs, IPs, or browsers.
 					if event.message == "Submitted Data" and event.email == target.email:
@@ -506,7 +605,11 @@ class GPCampaign(object):
 						if not mmdb_location == None:
 							mmdb_latitude, mmdb_longitude = mmdb_location['location']['latitude'], mmdb_location['location']['longitude']
 							# Check if GoPhish's coordinates agree with these MMDB results
-							result += self.compare_ip_coordinates(target.latitude, target.longitude, mmdb_latitude, mmdb_longitude)
+							loc = self.compare_ip_coordinates(target.latitude, target.longitude, mmdb_latitude, mmdb_longitude, event.details['browser']['address'])
+							if not loc is None:
+								result += loc
+							else:
+								result += "None"
 						else:
 							result += ",IP address look-up returned None"
 
@@ -524,12 +627,11 @@ class GPCampaign(object):
 						data_payload = event.details['payload']
 						# Get all of the submitted data
 						for key, value in data_payload.items():
-							# To get just subnitted data, we drop the 'rid' key
+							# To get just submitted data, we drop the 'rid' key
 							if not key == "rid":
 								submitted_data += "{}:{}   ".format(key, str(value).strip("[").strip("]"))
 
 						result += ",{}".format(submitted_data)
-						print(result)
 						# Write the results row to the report for this target
 						writer.writerow(["Submitted Data Captured"])
 						writer.writerow(["Time", "IP", "City", "Browser", "Operating System", "Data Captured"])
@@ -591,13 +693,13 @@ class GPCampaign(object):
 		p = d.add_paragraph()
 		run = p.add_run("CAMPAIGN RESULTS FOR: {}".format(self.cam_name))
 		run.bold = True
-
+		# Runs are basically "runs" os text and must be aligned in the completed_date
+		# like we want them aligned in the report -- thus they are pushed left
 		p.add_run("""
 Status: {}
 Created: {}
 Started: {}
 Completed: {}
-
 """.format(self.cam_status, self.created_date, self.launch_date,
 		self.completed_date))
 
@@ -613,7 +715,6 @@ Redirect URL: {}
 Attachment(s): {}
 Captured Credentials: {}
 Stored Passwords: {}
-
 """.format(self.cam_from_address, self.cam_subject_line, self.cam_url,
 		self.cam_redirect_url, self.cam_template_attachments, self.cam_capturing_credentials,
 		self.cam_capturing_passwords))
@@ -665,7 +766,6 @@ Entered Data: {}
 			table.add_row()
 			email_cell = table.cell(counter,0)
 			email_cell.text = "{}".format(target.email)
-			print(target.email)
 
 			if target.email in self.targets_opened:
 				temp_cell = table.cell(counter,1)
@@ -863,7 +963,7 @@ Entered Data: {}
 					if not mmdb_location == None:
 						mmdb_latitude, mmdb_longitude = mmdb_location['location']['latitude'], mmdb_location['location']['longitude']
 						# Check if GoPhish's coordinates agree with these MMDB results
-						event_location.text = "{}".format(self.compare_ip_coordinates(target.latitude, target.longitude, mmdb_latitude, mmdb_longitude))
+						event_location.text = "{}".format(self.compare_ip_coordinates(target.latitude, target.longitude, mmdb_latitude, mmdb_longitude, event.details['browser']['address']))
 					else:
 						print("[!] MMDB lookup returned no location results!")
 						event_location.text = "IP address look-up returned None"
@@ -885,7 +985,7 @@ Entered Data: {}
 					data_payload = event.details['payload']
 					# Get all of the submitted data
 					for key, value in data_payload.items():
-						# To get just subnitted data, we drop the 'rid' key
+						# To get just submitted data, we drop the 'rid' key
 						if not key == "rid":
 							submitted_data += "{}:{}   ".format(key, str(value).strip("[").strip("]"))
 
@@ -1006,6 +1106,6 @@ Entered Data: {}
 		d.save("{}".format(self.output_word_report))
 		print("[+] Done! Check \"{}\" for your results.".format(self.output_word_report))
 
+
 if __name__ == '__main__':
-	gophish = GPCampaign()
-	gophish.run()
+	parse_options()
