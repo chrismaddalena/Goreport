@@ -22,6 +22,7 @@ import sys
 import csv
 import configparser
 import time
+import random
 # Imports for statistics, e.g. browsera and operating systems
 from user_agents import parse
 from collections import Counter
@@ -33,6 +34,7 @@ requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 # Import the MaxmInd's GeoLite for IP address GeoIP look-ups
 from geolite2 import geolite2
 # Imports for writing the Word.doc report
+import os.path
 from docx import *
 from docx.shared import *
 from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -47,7 +49,7 @@ try:
 	config.read('gophish.ini')
 except Exception as e:
 	print("[!] Could not open the /gophish.ini config file -- make sure it exists and is readable.")
-	print("[!] Details: {}".format(e))
+	print("L.. Details: {}".format(e))
 	sys.exit()
 
 
@@ -76,7 +78,7 @@ try:
 	# MMDB = ConfigSectionMap("GeoIP")['mmdb_path']
 except Exception as e:
 	print("[!] There was a problem reading values from the gophish.ini file!")
-	print("[!] Details: {}".format(e))
+	print("L.. Details: {}".format(e))
 	sys.exit()
 
 
@@ -90,6 +92,31 @@ def set_column_width(column, width):
 		cell.width = width
 
 
+def print_banner():
+	"""Just a function to print sweet ASCII art banners."""
+	banner_1 = ("""
+:::=====  :::====  :::====  :::===== :::====  :::====  :::====  :::====
+:::       :::  === :::  === :::      :::  === :::  === :::  === :::====
+=== ===== ===  === =======  ======   =======  ===  === =======    ===
+===   === ===  === === ===  ===      ===      ===  === === ===    ===
+ =======   ======  ===  === ======== ===       ======  ===  ===   ===
+	""")
+
+	banner_2 = ("""
+  #####         ######
+ #     #  ####  #     # ###### #####   ####  #####  #####
+ #       #    # #     # #      #    # #    # #    #   #
+ #  #### #    # ######  #####  #    # #    # #    #   #
+ #     # #    # #   #   #      #####  #    # #####    #
+ #     # #    # #    #  #      #      #    # #   #    #
+  #####   ####  #     # ###### #       ####  #    #   #
+ 	""")
+
+	art = [banner_1, banner_2]
+	print (random.choice(art))
+
+
+# Setup an AliasedGroup for CLICK
 class AliasedGroup(click.Group):
 	"""Allows commands to be called by their first unique character."""
 
@@ -129,31 +156,46 @@ def GoReport():
 	pass
 
 
-# Setup our CLICK arguments
-# TODO: Arguments/flags for getting quick statistics, like percentages and quick numbers (no report output)
+# Setup our CLICK arguments and help text
 @GoReport.command(name='report', short_help="Generate a full report for the selected campaign -- either CSV or DOCX.")
-@click.option('--id', help="The target campaign's ID.", required=True)
-@click.option('--format', type=click.Choice(['csv', 'word']), help="Use this option to choose between report formats.", required=True)
+@click.option('--id', help="The target campaign's ID.", required=True, multiple=True)
+@click.option('--format', type=click.Choice(['csv', 'word', 'quick']), help="Use this option to choose between report formats.", required=True)
 @click.pass_context
 def parse_options(self, id, format):
-	"""A quick function to check the provided options and kick-off GoReport."""
-	# CAM_ID is double declared like this so there are no complaints if this check fails
-	CAM_ID = id
-	try:
-		# Test to make sure the provided ID is really an integer
-		CAM_ID = int(CAM_ID)
-	except:
-		print("[!] You entered an invalid campaign ID! {} will not do!".format(CAM_ID))
-		sys.exit()
+	"""GoReport uses the GoPhish API to connect to your GoPhish instance using the
+	IP address, port, and API key for your installation. This information is provided
+	in the gophish.ini file and loaded at runtime. GoReport will collect details
+	for the specified campaign and output statistics and interesting data for you.
 
-	# Set our report format, csv or word
-	# OUTPUT_TYPE = format
+	Target a campaign by its ID number with --id and then select a report format.\n
+	   * csv: A comma separated file. Good for copy/pasting into other documents.\n
+	   * word: A formatted docx file. A template.docx file is required (see the README).\n
+	   * quick: Command line output of some basic stats. Good for a quick check or client call.\n
 
-	# Kick-off a new campaign object with our options
-	gophish = GPCampaign(CAM_ID, format)
-	gophish.run()
+	Hint: Multiple reports can be run by adding additional --id arguments!
+	"""
+	print_banner()
+	# Proceed with one campaign ID at a time
+	for x in id:
+		# CAM_ID is double declared like this so there are no complaints if this check fails
+		CAM_ID = x
+		try:
+			# Test to make sure the provided ID is really an integer
+			CAM_ID = int(CAM_ID)
+		except:
+			print("[!] You entered an invalid campaign ID! {} will not do!".format(CAM_ID))
+			sys.exit()
+
+		# Kick-off a new campaign object with our options
+		try:
+			gophish = GPCampaign(CAM_ID, format)
+			gophish.run()
+		except:
+			# Oops? Hopefully the exception was caught elsewhere and we can continue.
+			continue
 
 
+# Everything from here on is the GoPhish Campaign class
 class GPCampaign(object):
 	"""This class uses the GoPhish library to create a new GoPhish API connection
 	and queries GoPhish for information and results related to the specified
@@ -207,51 +249,34 @@ class GPCampaign(object):
 		self.OUTPUT_TYPE = OUTPUT_TYPE
 		try:
 			# Connect to the GoPhish API
+			# NOTE: This step succeeds even with a bad API key, so the true test is fetching an ID
 			print("[+] Connecting to GoPhish at {}".format(GP_HOST))
 			self.api = Gophish(API_KEY, host=GP_HOST, verify=False)
-		except Exception as e:
-			print("[!] There was a problem connecting to GoPhish! Check your gophish.ini to confirm host, port, annd API key.")
-			print("[!] Details: {}".format(e))
-			sys.exit()
-
-		try:
-			# Request campaign details
-			print("[+] We will now be fetching results for Campaign ID {}...".format(CAM_ID))
+			# Request the details for the provided campaign ID
+			print("[+] We will now try fetching results for Campaign ID {}.".format(CAM_ID))
 			self.campaign = self.api.campaigns.get(campaign_id=CAM_ID)
-			print("[+] We have successfully pulled the campaign details for ID {}!".format(CAM_ID))
+			# Check to see is a success message was returned with a message
+			# This will mean there is probably a problem with the connection or API key
+			try:
+				if self.campaign.success is False:
+					print("[!] Connection to GoPhish failed!")
+					print("L.. Details: {}".format(self.campaign.message))
+			# If self.campaign.success does not exist then we were successful
+			except:
+				print("[+] We have successfully pulled the campaign details for ID {}.".format(CAM_ID))
 		except Exception as e:
-			print("[!] There was a problem fetching this campaign ID's details. Are you sure campaign {} is right?".format(CAM_ID))
-			print("[!] Details: {}".format(e))
+			if self.campaign.success:
+				print("yay?")
+			print("[!] There was a problem fetching this campaign ID's details. Are you sure your URL and API key are correct? Check HTTP vs HTTPS!".format(CAM_ID))
+			print("L.. Details: {}".format(e))
 			sys.exit()
 
 		# Create the MaxMind GeoIP reader for the CeoLite2-City.mmdb database file
 		self.geoip_reader = geolite2.reader()
 
-	def print_banner(self):
-		"""Just a function to print sweet ASCII art banners."""
- # 	print("""
- # :::=====  :::====  :::====  :::===== :::====  :::====  :::====  :::====\n
- # :::       :::  === :::  === :::      :::  === :::  === :::  === :::====\n
- # === ===== ===  === =======  ======   =======  ===  === =======    ===  \n
- # ===   === ===  === === ===  ===      ===      ===  === === ===    ===  \n
- #  =======   ======  ===  === ======== ===       ======  ===  ===   ===  \n
- #  		""")
-
-		print(
-		"""
-  #####         ######                                    \n
- #     #  ####  #     # ###### #####   ####  #####  ##### \n
- #       #    # #     # #      #    # #    # #    #   #   \n
- #  #### #    # ######  #####  #    # #    # #    #   #   \n
- #     # #    # #   #   #      #####  #    # #####    #   \n
- #     # #    # #    #  #      #      #    # #   #    #   \n
-  #####   ####  #     # ###### #       ####  #    #   # \n
-		""")
-
 	def run(self):
 		"""Run everything to process the target campaign."""
 		# Collect campaign details and process data
-		self.print_banner()
 		self.collect_campaign_details()
 		self.parse_results()
 		self.parse_timeline_events()
@@ -262,8 +287,31 @@ class GPCampaign(object):
 			self.write_csv_report()
 		elif self.OUTPUT_TYPE == "word":
 			print("[+] Building the report -- you selected a Word/docx report.")
-			self.output_word_report = self._build_output_word_file_name()
-			self.write_word_report()
+			print("[+] Looking for the template.docx to be used for the Word report.")
+			if os.path.isfile("template.docx"):
+				self.output_word_report = self._build_output_word_file_name()
+				self.write_word_report()
+			else:
+				print("[!] Could not find the template document! Make sure 'template.docx' is in the GoReport directory.")
+				sys.exit()
+		elif self.OUTPUT_TYPE == "quick":
+			print("[+] No report this time. Here are your quick stats:\n")
+			self.get_quick_stats()
+
+	def get_quick_stats(self):
+		"""Present quick stats for the campaign. Just basic numbers and some details."""
+		print(self.campaign.name)
+		print("Status:\t\t{}".format(self.cam_status))
+		print("Created:\t{} on {}".format(self.created_date.split("T")[1].split(".")[0], self.created_date.split("T")[0]))
+		print("Started:\t{} on {}".format(self.launch_date.split("T")[1].split(".")[0], self.launch_date.split("T")[0]))
+		if self.cam_status == "Completed":
+			print("Completed:\t{} on {}".format(self.completed_date.split("T")[1].split(".")[0], self.completed_date.split("T")[0]))
+		print("Total targets:\t{}".format(self.total_targets))
+		print("Emails sent:\t{}".format(self.total_sent))
+		print("Opened events:\t{}".format(self.total_opened))
+		print("Click events:\t{}".format(self.total_clicked))
+		print("Entered data:\t{}".format(self.total_submitted))
+		print("IPs seen:\t{}".format(len(self.ip_addresses)))
 
 	def _build_output_csv_file_name(self):
 		"""A helper function to create the output report name."""
@@ -282,8 +330,7 @@ class GPCampaign(object):
 		try:
 			self.cam_id = self.campaign.id
 		except:
-			print("[!] Looks like that campaign ID does not exist!")
-			sys.exit()
+			print("[!] Looks like that campaign ID does not exist! Skipping it...")
 
 		self.cam_name = self.campaign.name
 		self.cam_status = self.campaign.status

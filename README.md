@@ -12,6 +12,9 @@ These Python libraries are required as well:
 * maxminddb-geolite2
 * configparser
 * python-docx
+* click
+* user-agents
+* python-dateutil (Required by the gophish library)
 
 ## GoReport Setup
 You need to do a few things to get started:
@@ -20,13 +23,11 @@ You need to do a few things to get started:
 * Download a fresh and up-to-date copy of the free MaxMind Geo IP database (see below).
 * Edit/create a gophish.ini configuration file that looks like the one below.
   * Note: The full host URL is required, so provide http://IP:PORT or https://IP:PORT.
-* Get your campaign ID number by clicking your campaign results and referencing the URL (it's the number at the end).
+	* Be aware of using HTTP vs HTTPS. If you type in the wrong one you'll receive connection errors.
+* Get your campaign ID(s) number by clicking your campaign results and referencing the URL (it's the number at the end).
 * Drop a "template.docx" template file into the GoReport directory if you want to create Word document reports (more information below in Selecting Report Output).
 
 ## Basic Usage
-
-
-### Sample Usage
 
 Assuming GoPhish was on another server and you are using SSH port forwarding with port 8080:
 
@@ -40,19 +41,23 @@ Assuming GoPhish was on another server and you are using SSH port forwarding wit
 
 <b>Command</b>
 
-`python goreport.py 26 csv`
+`python3 goreport.py --id 26 --format csv`
 
 That would fetch the results of campaign 26 from https://localhost:8080/api/campaigns/26/?api_key=<Your_API_Key> and output the results in a csv file.
 
+Multiple IDs can be provided at one time for multiple reports. Just add additional `--id ##` arguments.
+
 ### Switching Report Output
 
-GoReport can output either a csv file or a Word document (docx). Simply provide your preferred format as your second command line argument, as shown above in the Sample Usage section. There is not much to say about the csv format. It's your basic comma delimited file. The Word document, however, is a bit more than that.
+GoReport can output either a csv file or a Word document (docx). There is also a "quick" report option. Simply select your preferred format using the `--format` command line argument, as shown above in the Sample Usage section. There is not much to say about the csv format. It's your basic comma delimited file. The Word document, however, is a bit more than that.
 
 The Word document is built from a template, template.docx. Place your template file, named template.docx, into the GoReport directory with main script. Your template should include a table style you want to use and heading styles for Heading 1 and Heading 1. Name your preferred table style "GoReport" and setup your Heading 1 and 2 styles. The headings do not need to be named, but can be renamed to "GoReport" as well as a reminder for yourself.
 
 Feel free to create a custom style or use an existing style. The only thing that matters is a template.docx file exists and it has a "GoReport" table style.
 
 To rename a style, right-click the style, select Modify Table Style, and set a new name.
+
+Finally, there is a "quick report" option. This does not generate a report document. Instead of a report, it outputs basic information about the campaign to your terminal. This is handy for quickly checking campaign progress or referencing results after campaign completion.
 
 ## Additional Information
 
