@@ -1,5 +1,4 @@
 *.csv
 *.DS_Store
 *.pyc
-*.mmdb
 *.config
