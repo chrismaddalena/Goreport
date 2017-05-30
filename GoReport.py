@@ -306,7 +306,7 @@ class GoReport(object):
 		if initial_len != unique_len:
 			dupes = initial_len - unique_len
 			print("L.. GoReport found {} duplicate campaign IDs, so those have been trimmed to avoid bad results with --combine and wasted time.".format(dupes))
-		print("[+] GoReport will process IDs {}".format(", ".join(id_list)))
+		print("[+] GoReport will process IDs {}".format(",".join(id_list)))
 
 		# If --combine is used with just one ID it can break reporting, so we catch that here
 		if len(id_list) == 1 and combine_reports:
@@ -318,7 +318,7 @@ class GoReport(object):
 			print("[+] We will now try fetching results for Campaign ID {}.".format(CAM_ID))
 			try:
 				# Test to make sure the provided ID is an integer
-				CAM_ID = int(CAM_ID)
+				int(CAM_ID)
 			except:
 				print("[!] You entered an invalid campaign ID. '{}' will not do!".format(CAM_ID))
 				# Continue on to the next ID, if there is one
