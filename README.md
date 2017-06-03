@@ -3,7 +3,7 @@
 
 This script accepts your GoPhish campaign ID(s) as a parameter and then collects the campaign results to present the statistics and perform user-agent parsing and geo IP lookups. GoReport generates lists of IP addresses, operating systems, browser types and versions, and locations with counts for the number of times each one was seen throughout the campaign.
 
-A note on statistics: GoReport will report the total number of events and the number of email recipients that participated in each event. In other words, GoReport will how many times GoPhish recorded a "Clicked Link" event and how many recipients clicked a link. These are very different numbers. A campaign sent to 10 people could have 9 Clicked Link events when only 3 recipients clicked a link. Knowing that recipients clicked a link or submitted data more than once is valuable information, but make sure you keep the numbers straight.
+A note on statistics: GoReport will report the total number of events and the number of email recipients that participated in each event. In other words, GoReport will how many times GoPhish recorded a "Clicked Link" event and how many recipients clicked a link. These are very different numbers. A campaign sent to 10 people could have 9 Clicked Link events when only 3 recipients clicked a link. Knowing that recipients clicked a link or submitted data more than once is valuable information, but make sure you keep the numbers staright.
 
 ## GoReport Requirements
 This script requires GoPhish, of course, and the API key for your GoPhish application. Get this key by clicking the Settings tab. The API key will be found on the first page. Each GoPhish user account has its own API key which acts as the method of authentication for that user to the GoPhish API. If you use multiple accounts with GoPhish, make sure you grab that user's API key.
@@ -112,6 +112,13 @@ GoReport uses these steps to setup some lists to determine the basic results for
 With this foundation, GoReport can arrange the data in any number of ways for a report. At any time, the lists can be queried to check if a certain email address in the results model appears in the targets_clicked list to confirm if that recipient clicked a link. That can then kick-off a review of the timeline model to collect details. GoPhish keeps the details like IP address and user-agent in the timeline model and basic information in the results model.
 
 ## Change Log
+June 2, 2017
+* Improved reporting output:
+  * Word and csv reports now only create Detailed Analysis sections for targets that at least clicked a link.
+  * The Word summary table is now in color and includes OS and browser info (when available).
+* Improved user feedback to track progress through reporting.
+* Code clean-up to catch different ways campaign IDs may be entered incorrectly and catch them sooner.
+
 May 30, 2017
 * Added `--verbose` to clean-up terminal output without removing the optional feedback.
 * Fixed a "NoneType + str" bug in the geolocation lookups.
