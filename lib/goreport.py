@@ -735,16 +735,19 @@ location.".format(ip_address))
                             # This is based on the IP address pulled from the browser for this event
                             # Start by getting the coordinates from GeoLite2
                             mmdb_location = self.lookup_ip(event.details['browser']['address'])
-                            if not mmdb_location is None:
-                                mmdb_latitude, mmdb_longitude = mmdb_location['location']['latitude'],\
-                                                                mmdb_location['location']['longitude']
-                                # Check if GoPhish's coordinates agree with these MMDB results
-                                result += ",{}".format(
-                                    self.compare_ip_coordinates(target.latitude, target.longitude,
-                                                                mmdb_latitude, mmdb_longitude,
-                                                                event.details['browser']['address'],
-                                                                self.verbose))
-                            else:
+                            try:
+                                if not mmdb_location is None:
+                                    mmdb_latitude, mmdb_longitude = mmdb_location['location']['latitude'],\
+                                                                    mmdb_location['location']['longitude']
+                                    # Check if GoPhish's coordinates agree with these MMDB results
+                                    result += ",{}".format(
+                                        self.compare_ip_coordinates(target.latitude, target.longitude,
+                                                                    mmdb_latitude, mmdb_longitude,
+                                                                    event.details['browser']['address'],
+                                                                    self.verbose))
+                                else:
+                                    result += ",IP address look-up returned None"
+                            except:
                                 result += ",IP address look-up returned None"
 
                             # Parse the user-agent string and add browser and OS details
@@ -777,22 +780,24 @@ location.".format(ip_address))
                             # This is based on the IP address pulled from the browser for this event
                             # Start by getting the coordinates from GeoLite2
                             mmdb_location = self.lookup_ip(event.details['browser']['address'])
-                            if not mmdb_location is None:
-                                mmdb_latitude, mmdb_longitude = mmdb_location['location']['latitude'],\
-                                                                mmdb_location['location']['longitude']
-                                # Check if GoPhish's coordinates agree with these MMDB results
-                                loc = self.compare_ip_coordinates(target.latitude,
-                                                                  target.longitude, mmdb_latitude,
-                                                                  mmdb_longitude,
-                                                                  event.details['browser']['address'],
-                                                                  self.verbose)
-                                if not loc is None:
-                                    result += loc
+                            try:
+                                if not mmdb_location is None:
+                                    mmdb_latitude, mmdb_longitude = mmdb_location['location']['latitude'],\
+                                                                    mmdb_location['location']['longitude']
+                                    # Check if GoPhish's coordinates agree with these MMDB results
+                                    loc = self.compare_ip_coordinates(target.latitude,
+                                                                    target.longitude, mmdb_latitude,
+                                                                    mmdb_longitude,
+                                                                    event.details['browser']['address'],
+                                                                    self.verbose)
+                                    if not loc is None:
+                                        result += loc
+                                    else:
+                                        result += "None"
                                 else:
-                                    result += "None"
-                            else:
+                                    result += ",IP address look-up returned None"
+                            except:
                                 result += ",IP address look-up returned None"
-
                             # Parse the user-agent string and add browser and OS details
                             user_agent = parse(event.details['browser']['user-agent'])
 
@@ -1141,14 +1146,18 @@ lot of targets...")
                         # This is based on the IP address pulled from the browser
                         # Start by getting the coordinates from GeoLite2
                         mmdb_location = self.lookup_ip(event.details['browser']['address'])
-                        if not mmdb_location is None:
-                            mmdb_latitude, mmdb_longitude = mmdb_location['location']['latitude'],\
-                                                            mmdb_location['location']['longitude']
-                            # Check if GoPhish's coordinates agree with these MMDB results
-                            event_location.text = "{}".format(self.compare_ip_coordinates(
-                                target.latitude, target.longitude, mmdb_latitude, mmdb_longitude,
-                                event.details['browser']['address'], self.verbose))
-                        else:
+                        try:
+                            if not mmdb_location is None:
+                                mmdb_latitude, mmdb_longitude = mmdb_location['location']['latitude'],\
+                                                                mmdb_location['location']['longitude']
+                                # Check if GoPhish's coordinates agree with these MMDB results
+                                event_location.text = "{}".format(self.compare_ip_coordinates(
+                                    target.latitude, target.longitude, mmdb_latitude, mmdb_longitude,
+                                    event.details['browser']['address'], self.verbose))
+                            else:
+                                print("[!] MMDB lookup returned no location results!")
+                                event_location.text = "IP address look-up returned None"
+                        except:
                             print("[!] MMDB lookup returned no location results!")
                             event_location.text = "IP address look-up returned None"
 
@@ -1216,17 +1225,20 @@ lot of targets...")
 
                         event_location = submitted_table.cell(submitted_counter, 2)
                         mmdb_location = self.lookup_ip(event.details['browser']['address'])
-                        if not mmdb_location is None:
-                            mmdb_latitude, mmdb_longitude = mmdb_location['location']['latitude'],\
-                                                            mmdb_location['location']['longitude']
-                            # Check if GoPhish's coordinates agree with these MMDB results
-                            event_location.text = "{}".format(self.compare_ip_coordinates(
-                                target.latitude, target.longitude, mmdb_latitude, mmdb_longitude,
-                                event.details['browser']['address'], self.verbose))
-                        else:
+                        try:
+                            if not mmdb_location is None:
+                                mmdb_latitude, mmdb_longitude = mmdb_location['location']['latitude'],\
+                                                                mmdb_location['location']['longitude']
+                                # Check if GoPhish's coordinates agree with these MMDB results
+                                event_location.text = "{}".format(self.compare_ip_coordinates(
+                                    target.latitude, target.longitude, mmdb_latitude, mmdb_longitude,
+                                    event.details['browser']['address'], self.verbose))
+                            else:
+                                print("[!] MMDB lookup returned no location results!")
+                                event_location.text = "IP address look-up returned None"
+                        except:
                             print("[!] MMDB lookup returned no location results!")
                             event_location.text = "IP address look-up returned None"
-
                         # Parse the user-agent string and add browser and OS details
                         user_agent = parse(event.details['browser']['user-agent'])
 
