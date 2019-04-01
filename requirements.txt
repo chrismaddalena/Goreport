@@ -1,8 +1,8 @@
 python-docx
-maxminddb-geolite2
 requests
 gophish
 configparser
 python-dateutil
 user-agents
 click
+xlsxwriter
