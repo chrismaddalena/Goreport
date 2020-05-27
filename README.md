@@ -57,6 +57,14 @@ Multiple IDs can be provided at one time for multiple reports. The IDs can be pr
 
 Example: `python3 Goreport.py --id 26,29-33,54 --format csv`
 
+**Docker example**
+
+```
+docker build -t goreport .
+docker run -it --rm -v $(pwd):/opt goreport --id 26,29-33,54 --format excel --combine
+
+```
+
 ### Changing Config Files
 
 If you use multiple Gophish user accounts or servers, then you will have multiple API keys. To make it easier to switch between keys, Goreport's `--config` option enables you to override the default config file, gophish.config, with a config file you name. If this argument is provided with a valid, readable config file, Goreport will use it instead of gophish.config to setup the API connections.
