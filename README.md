@@ -118,17 +118,3 @@ Third, `process_results()` is called to get Gophish's results model for the ID. 
 Goreport uses these steps to setup some lists to determine the basic results for the campaign, e.g. who was successfully sent an email, which recipients clicked a linked, and which recipients provided data.
 
 With this foundation, Goreport can arrange the data in any number of ways for a report. At any time, the lists can be queried to check if a certain email address in the results model appears in the `targets_clicked` list to confirm if that recipient clicked a link. That can then kick-off a review of the timeline model to collect details. Gophish keeps the details like IP address and user-agent in the timeline model and basic information in the results model.
-
-## Change Log
-
-March 31, 2019, Goreport v3.0
-* Fixed the `--complete` flag not setting the last campaign in a list to Complete.
-* Dropped the MaxMind DB geolocation due to unreliability and replaced it with an option for ipinfo.io.
-* Updated the Google Maps API option now that it is the Geolocate API and requires a key.
-* Added support for Gophish's "Email Reported" event.
-* Removed the csv report in favor of a much nicer xlsx workbook report.
-* Geolocation lookups for IP addresses are now much, much more efficient and occur only once per unique address.
-* Added a new report table matching each unique IP address to its matching location.
-* Fixed typos in the reports and improved formatting.
-* Squashed a hundred and one little bugs.
-* Added example reports from the Gophish demo database.
