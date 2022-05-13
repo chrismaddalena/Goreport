@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-"""This is the GoReport class. GoReport handles everything from connecting to the target Gophish
+"""
+This is the GoReport class. GoReport handles everything from connecting to the target Gophish
 server to pulling campaign information and reporting the results.
 """
 
-# Try to import gophish
 try:
+    # 3rd Party Libraries
     from gophish import Gophish
 except:
     print("[!] Could not import the Gophish library! Make sure it is installed.\n\
@@ -15,36 +16,31 @@ Test it by running `python3` and then, in the \
 Python prompt, typing `from gophish import Gophish`.")
     exit()
 
-# Imports for statistics, e.g. browser and operating systems
-from user_agents import parse
-from collections import Counter, OrderedDict
-# Import for writing the Excel xlsx report
-import xlsxwriter
-# Imports for writing the Word docx report
-import os.path
-from docx import *
-from docx.shared import *
-from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.enum.style import WD_STYLE_TYPE
-from docx.enum.table import WD_TABLE_ALIGNMENT
-from docx.oxml.shared import OxmlElement, qn
-# Basic imports
-import sys
+# Standard Libraries
 import configparser
-import time
-# Imports for web requests, e.g. Google Maps API for location data
-# Disables the insecure HTTPS warning for the self-signed GoPpish certs
+import os.path
+import sys
+from collections import Counter
+
+# 3rd Party Libraries
 import requests
+import xlsxwriter
+from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
+from docx.shared import Cm, Pt, RGBColor
 from requests.packages.urllib3.exceptions import InsecureRequestWarning
+from user_agents import parse
+
 requests.packages.urllib3.disable_warnings(InsecureRequestWarning)
 
 
 class Goreport(object):
-    """This class uses the Gophish library to create a new Gophish API connection
+    """
+    This class uses the Gophish library to create a new Gophish API connection
     and queries Gophish for information and results related to the specified
     campaign ID(s).
     """
-    # Name of the config file -- default is gophish.config
+    # Name of the config file -- default is ``gophish.config``
     goreport_config_file = "gophish.config"
     verbose = False
 
@@ -104,8 +100,9 @@ class Goreport(object):
     xlsx_header_font_color = "#FFFFFF"
 
     def __init__(self, report_format, config_file, google, verbose):
-        """Initiate the connection to the Gophish server with the provided host,
-        port, and API key and prepare to use the external APIs.
+        """
+        Initiate the connection to the Gophish server with the provided host, port,
+        and API key and prepare to use the external APIs.
         """
         try:
             # Check if an alternate config file was provided
@@ -115,8 +112,8 @@ class Goreport(object):
             config = configparser.ConfigParser()
             config.read(self.goreport_config_file)
         except Exception as e:
-            print("[!] Could not open {} -- make sure it exists and is readable.".format(self.goreport_config_file))
-            print("L.. Details: {}".format(e))
+            print(f"[!] Could not open {self.goreport_config_file} -- make sure it exists and is readable.")
+            print(f"L.. Details: {e}")
             sys.exit()
 
         try:
@@ -125,7 +122,7 @@ class Goreport(object):
             API_KEY = self.config_section_map(config, 'Gophish')['api_key']
         except Exception as e:
             print("[!] There was a problem reading values from the gophish.config file!")
-            print("L.. Details: {}".format(e))
+            print(f"L.. Details: {e}")
             sys.exit()
 
         try:
@@ -136,6 +133,7 @@ class Goreport(object):
         except Exception as e:
             self.IPINFO_TOKEN = None
             print("[!] No ipinfo.io API token was found in the config. GoReport will not lookup IP addresses with ipinfo.io for additional location data.")
+            print(f"L.. Details: {e}")
 
         try:
             # Read in the values from the config file
@@ -146,6 +144,7 @@ class Goreport(object):
             self.GEOLOCATE_TOKEN = None
             if google:
                 print("[!] No Google Maps API token was found in the config so GoReport will ignore the `--google` flag.")
+                print(f"L.. Details: {e}")
 
         # Set command line options for the GoReport object
         self.google = google
@@ -153,8 +152,8 @@ class Goreport(object):
         self.report_format = report_format
         # Connect to the Gophish API
         # NOTE: This step succeeds even with a bad API key, so the true test is fetching an ID
-        print("[+] Connecting to Gophish at {}".format(GP_HOST))
-        print("L.. The API Authorization endpoint is: {}/api/campaigns/?api_key={}".format(GP_HOST, API_KEY))
+        print(f"[+] Connecting to Gophish at {GP_HOST}")
+        print(f"L.. The API Authorization endpoint is: {GP_HOST}/api/campaigns/?api_key={API_KEY}")
         self.api = Gophish(API_KEY, host=GP_HOST, verify=False)
 
     def run(self, id_list, combine_reports, set_complete_status):
@@ -191,7 +190,7 @@ class Goreport(object):
         except Exception as e:
             print("[!] Could not interpret your provided campaign IDs. \
 Ensure the IDs are provided as comma-separated integers or interger ranges, e.g. 5,50-55,71.")
-            print("L.. Details: {}".format(e))
+            print(f"L.. Details: {e}")
             sys.exit()
         # Begin processing the campaign IDs by removing any duplicates
         try:
@@ -208,37 +207,37 @@ Ensure the IDs are provided as comma-separated integers or interger ranges, e.g.
                     int(id)
                 except:
                     temp.append(id)
-            print("[!] There are {} invalid campaign ID(s), i.e. not an integer.".format(len(temp)))
-            print("L.. Offending IDs: {}".format(",".join(temp)))
+            print(f"[!] There are {len(temp)} invalid campaign ID(s), i.e. not an integer.")
+            print(f"L.. Offending IDs: {','.join(temp)}")
+            print(f"L.. Details: {e}")
             sys.exit()
-        print("[+] A total of {} campaign IDs have been provided for processing.".format(initial_len))
+        print(f"[+] A total of {initial_len} campaign IDs have been provided for processing.")
         # If the lengths are different, then GoReport removed one or more dupes
         if initial_len != unique_len:
             dupes = initial_len - unique_len
-            print("L.. GoReport found {} duplicate campaign IDs, so those have been trimmed.".format(dupes))
+            print(f"L.. GoReport found {dupes} duplicate campaign IDs, so those have been trimmed.")
         # Provide  list of all IDs that will be processed
-        print("[+] GoReport will process the following campaign IDs: {}".format(",".join(id_list)))
+        print(f"[+] GoReport will process the following campaign IDs: {','.join(id_list)}")
         # If --combine is used with just one ID it can break reporting, so we catch that here
         if len(id_list) == 1 and combine_reports:
             combine_reports = False
         # Go through each campaign ID and get the results
         campaign_counter = 1
         for CAM_ID in id_list:
-            print("[+] Now fetching results for Campaign ID {} ({}/{}).".format(CAM_ID, campaign_counter, len(id_list)))
+            print(f"[+] Now fetching results for Campaign ID {CAM_ID} ({campaign_counter}/{len(id_list)}).")
             try:
                 # Request the details for the provided campaign ID
                 self.campaign = self.api.campaigns.get(campaign_id=CAM_ID)
             except Exception as e:
-                print("[!] There was a problem fetching this campaign ID's details. \
-Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID))
-                print("L.. Details: {}".format(e))
+                print(f"[!] There was a problem fetching this campaign {CAM_ID}'s details. Make sure your URL and API key are correct. Check HTTP vs HTTPS!")
+                print(f"L.. Details: {e}")
             try:
                 try:
                     # Check to see if a success message was returned with a message
                     # Possible reasons: campaign ID doesn't exist or problem with host/API key
                     if self.campaign.success is False:
-                        print("[!] Failed to get results for campaign ID {}".format(CAM_ID))
-                        print("L.. Details: {}".format(self.campaign.message))
+                        print(f"[!] Failed to get results for campaign ID {CAM_ID}")
+                        print(f"L.. Details: {self.campaign.message}")
                         # We can't let an error with an ID stop reporting, so check if this was the last ID
                         if CAM_ID == id_list[-1] and combine_reports:
                             self.generate_report()
@@ -251,19 +250,19 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
                     self.process_results(combine_reports)
                     # If the --complete flag was set, now set campaign status to Complete
                     if set_complete_status:
-                        print("[+] Setting campaign ID {}'s status to Complete.".format(CAM_ID))
+                        print(f"[+] Setting campaign ID {CAM_ID}'s status to Complete.")
                         try:
                             set_complete = self.api.campaigns.complete(CAM_ID)
                             try:
                                 if set_complete.success is False:
-                                    print("[!] Failed to set campaign status for ID {}.".format(CAM_ID))
-                                    print("L.. Details: {}".format(set_complete.message))
+                                    print(f"[!] Failed to set campaign status for ID {CAM_ID}.")
+                                    print(f"L.. Details: {set_complete.message}")
                             # If set_complete.success does not exist then we were successful
                             except:
                                 pass
                         except Exception as e:
-                            print("[!] Failed to set campaign status for ID {}.".format(CAM_ID))
-                            print("L.. Details: {}".format(e))
+                            print(f"[!] Failed to set campaign status for ID {CAM_ID}.")
+                            print(f"L.. Details: {e}")
                     # Check if this is the last campaign ID in the list
                     # If this is the last ID and combined reports is on, generate the report
                     if CAM_ID == id_list[-1] and combine_reports:
@@ -273,8 +272,8 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
                         self.generate_report()
                     campaign_counter += 1
             except Exception as e:
-                print("[!] There was a problem processing campaign ID {}!".format(CAM_ID))
-                print("L.. Details: {}".format(e))
+                print(f"[!] There was a problem processing campaign ID {CAM_ID}!")
+                print(f"L.. Details: {e}")
                 sys.exit()
 
     def lookup_ip(self, ip):
@@ -291,12 +290,13 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
             'phone': '409',
             'org': 'AS14618 Amazon.com, Inc.'}
         """
-        ipinfo_url = "https://ipinfo.io/{}?token={}".format(ip, self.IPINFO_TOKEN)
+        ipinfo_url = f"https://ipinfo.io/{ip}?token={self.IPINFO_TOKEN}"
         try:
             r = requests.get(ipinfo_url)
             return r.json()
         except Exception as e:
-            print("[!] Failed to lookup {} with ipinfo.io.".format(ip))
+            print(f"[!] Failed to lookup `{ip}` with ipinfo.io.")
+            print(f"L.. Details: {e}")
             return None
 
     def get_google_location_data(self, lat, lon):
@@ -305,14 +305,14 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         Google returns a bunch of JSON with a variety of location data. This function returns
         Google's pre-formatted `formatted_address` key for a human-readable address.
         """
-        google_maps_url = "https://maps.googleapis.com/maps/api/geocode/json?latlng={},{}&sensor=false&key={}".format(lat, lon, self.GEOLOCATE_TOKEN)
+        google_maps_url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lon}&sensor=false&key={self.GEOLOCATE_TOKEN}"
         r = requests.get(google_maps_url)
         maps_json = r.json()
         if r.ok:
             try:
                 if "error_message" in maps_json:
-                    print("[!] Google Maps returned an error so using Gophish coordinates. Error: {}".format(maps_json['error_message']))
-                    return "{}, {}".format(lat, lon)
+                    print(f"[!] Google Maps returned an error so using Gophish coordinates. Error: {maps_json['error_message']}")
+                    return f"{lat}, {lon}"
                 first_result = maps_json['results'][0]
                 if "formatted_address" in first_result:
                     return first_result["formatted_address"]
@@ -327,14 +327,14 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
                             town = c['long_name']
                         if "administrative_area_level_1" in c['types']:
                             state = c['long_name']
-                    return "{}, {}, {}".format(town, state, country)
+                    return f"{town}, {state}, {country}"
             except Exception as e:
                 print("[!] Failed to parse Google Maps API results so using Gophish coordinates.")
-                print("L.. Error: {}".format(e))
-                return "{}, {}".format(lat, lon)
+                print(f"L.. Error: {e}")
+                return f"{lat}, {lon}"
         else:
-            print("[!] Failed to contact the Google Maps API so using Gophish coordinates. Status code: {}".format(r.status_code))
-            return "{}, {}".format(lat, lon)
+            print(f"[!] Failed to contact the Google Maps API so using Gophish coordinates. Status code: {r.status_code}")
+            return f"{lat}, {lon}"
 
     def geolocate(self, target, ipaddr, google=False):
         """Attempt to get location data for the provided target and event. Will use ipinfo.io if an
@@ -361,16 +361,16 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
                     if "country" in location_json:
                         if location_json['country']:
                             country = location_json['country']
-                    location = "{}, {}, {}".format(city, region, country)
+                    location = f"{city}, {region}, {country}"
                 else:
-                    location = "{}, {}".format(target.latitude, target.longitude)
+                    location = f"{target.latitude}, {target.longitude}"
             elif google:
                 if self.GEOLOCATE_TOKEN:
                     location = self.get_google_location_data(target.latitude, target.longitude)
                 else:
-                    location = "{}, {}".format(target.latitude, target.longitude)
+                    location = f"{target.latitude}, {target.longitude}"
             else:
-                location = "{}, {}".format(target.latitude, target.longitude)
+                location = f"{target.latitude}, {target.longitude}"
             self.locations.append(location)
             self.ip_and_location[ipaddr] = location
             return location
@@ -385,7 +385,7 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         else:
             # We have an IP mismatch -- hard to tell why this might be.
             if verbose:
-                print("[*] Event: This target's ({}) URL was clicked from a browser at {}.".format(target_ip, browser_ip))
+                print(f"[*] Event: This target's ({target_ip}) URL was clicked from a browser at {browser_ip}.")
             # This is an IP address not included in the results model, so we add it to our list here
             self.ip_addresses.append(browser_ip)
             return browser_ip
@@ -432,7 +432,7 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
             # Begin by checking if the ID is valid
             self.cam_id = self.campaign.id
             if combine_reports and self.cam_name is None:
-                print("[+] Reports will be combined -- setting name, dates, and URL based on campaign ID {}.".format(self.cam_id))
+                print(f"[+] Reports will be combined -- setting name, dates, and URL based on campaign ID {self.cam_id}.")
                 self.get_basic_campaign_info()
             elif combine_reports is False:
                 self.get_basic_campaign_info()
@@ -447,7 +447,7 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
                 self.results = self.campaign.results
                 self.timeline = self.campaign.timeline
         except:
-            print("[!] Looks like campaign ID {} does not exist! Skipping it...".format(self.cam_id))
+            print(f"[!] Looks like campaign ID {self.cam_id} does not exist! Skipping it...")
 
     def process_results(self, combine_reports):
         """Process the results model to collect basic data, like total targets and event details.
@@ -463,6 +463,11 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         elif combine_reports:
             self.total_targets += len(self.campaign.results)
         else:
+            # Not combining, so reset counters
+            self.total_unique_opened = 0
+            self.total_unique_clicked = 0
+            self.total_unique_reported = 0
+            self.total_unique_submitted = 0
             # Reports will not be combined, so reset tracking between reports
             self.total_targets = len(self.campaign.results)
             self.ip_addresses = []
@@ -478,6 +483,10 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
             temp_dict["email"] = target.email
             temp_dict["fname"] = target.first_name
             temp_dict["lname"] = target.last_name
+            position = "None Provided"
+            if target.position:
+                position = target.position
+            temp_dict["position"] = position
             temp_dict["ip_address"] = target.ip
             # Check if this target was recorded as viewing the email (tracking image)
             if target.email in self.targets_opened:
@@ -489,6 +498,10 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
             if target.email in self.targets_clicked:
                 temp_dict["clicked"] = True
                 self.total_unique_clicked += 1
+                # Incremement the total number of opens for this target if they clicked
+                # but did not display the tracking image in the email
+                if target.email not in self.targets_opened:
+                    self.total_unique_opened += 1
             else:
                 temp_dict["clicked"] = False
             # Check if this target submitted data
@@ -518,6 +531,12 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         opened_counter = 0
         reported_counter = 0
         submitted_counter = 0
+
+        # Reset target lists
+        self.targets_opened = []
+        self.targets_clicked = []
+        self.targets_reported = []
+        self.targets_submitted = []
         # Run through all events and count each of the four basic events
         for event in self.campaign.timeline:
             if event.message == "Email Sent":
@@ -577,36 +596,35 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         """Present quick stats for the campaign. Just basic numbers and some details."""
         print()
         print(self.cam_name)
-        print("Status:\t\t{}".format(self.cam_status))
-        print("Created:\t{} on {}".format(self.created_date.split("T")[1].split(".")[0],
-                                          self.created_date.split("T")[0]))
-        print("Started:\t{} on {}".format(self.launch_date.split("T")[1].split(".")[0],
-                                          self.launch_date.split("T")[0]))
+        print(f"Status:\t\t{self.cam_status}")
+        print(f"Created:\t{self.created_date.split('T')[1].split('.')[0]} on {self.created_date.split('T')[0]}")
+        print(f"Started:\t{self.launch_date.split('T')[1].split('.')[0]} on {self.launch_date.split('T')[0]}")
         if self.cam_status == "Completed":
-            print("Completed:\t{} on {}".format(self.completed_date.split("T")[1].split(".")[0],
-                                                self.completed_date.split("T")[0]))
+            print(f"Completed:\t{self.completed_date.split('T')[1].split('.')[0]} on {self.completed_date.split('T')[0]}")
         print()
-        print("Total Targets:\t{}".format(self.total_targets))
-        print("Emails Sent:\t{}".format(self.total_sent))
-        print("IPs Seen:\t{}".format(len(self.ip_addresses)))
+        print(f"Total Targets:\t{self.total_targets}")
+        print(f"Emails Sent:\t{self.total_sent}")
+        print(f"IPs Seen:\t{len(self.ip_addresses)}")
         print()
-        print("Total Opened Events:\t\t{}".format(self.total_opened))
-        print("Total Click Events:\t\t{}".format(self.total_clicked))
-        print("Total Submitted Data Events:\t{}".format(self.total_submitted))
+        print(f"Total Opened Events:\t\t{self.total_opened}")
+        print(f"Total Click Events:\t\t{self.total_clicked}")
+        print(f"Total Submitted Data Events:\t{self.total_submitted}")
         print()
-        print("Individuals Who Opened:\t\t\t{}".format(self.total_unique_opened))
-        print("Individuals Who Clicked:\t\t{}".format(self.total_unique_clicked))
-        print("Individuals Who Entered Data:\t\t{}".format(self.total_unique_submitted))
-        print("Individuals Who Reported the Email:\t{}".format(self.total_unique_reported))
+        print(f"Individuals Who Opened:\t\t\t{self.total_unique_opened}")
+        print(f"Individuals Who Clicked:\t\t{self.total_unique_clicked}")
+        print(f"Individuals Who Entered Data:\t\t{self.total_unique_submitted}")
+        print(f"Individuals Who Reported the Email:\t{self.total_unique_reported}")
 
     def _build_output_xlsx_file_name(self):
         """Create the xlsx report name."""
-        xlsx_report = "Gophish Results for {}.xlsx".format(self.cam_name)
+        safe_name = "".join([c for c in self.cam_name if c.isalpha() or c.isdigit() or c == " "]).rstrip()
+        xlsx_report = f"Gophish Results for {safe_name}.xlsx"
         return xlsx_report
 
     def _build_output_word_file_name(self):
         """Create the docx report name."""
-        word_report = "Gophish Results for {}.docx".format(self.cam_name)
+        safe_name = "".join([c for c in self.cam_name if c.isalpha() or c.isdigit() or c == " "]).rstrip()
+        word_report = f"Gophish Results for {safe_name}.docx"
         return word_report
 
     def _set_word_column_width(self, column, width):
@@ -669,20 +687,20 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         worksheet.set_column(0, 10, 62)
 
         worksheet.write(row, col, "Campaign Results For:", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.cam_name), wrap_format)
+        worksheet.write(row, col + 1, f"{self.cam_name}", wrap_format)
         row += 1
         worksheet.write(row, col, "Status", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.cam_status), wrap_format)
+        worksheet.write(row, col + 1, f"{self.cam_status}", wrap_format)
         row += 1
         worksheet.write(row, col, "Created", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.created_date), wrap_format)
+        worksheet.write(row, col + 1, f"{self.created_date}", wrap_format)
         row += 1
         worksheet.write(row, col, "Started", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.launch_date), wrap_format)
+        worksheet.write(row, col + 1, f"{self.launch_date}", wrap_format)
         row += 1
         if self.cam_status == "Completed":
             worksheet.write(row, col, "Completed", bold_format)
-            worksheet.write(row, col+1, "{}".format(self.completed_date), wrap_format)
+            worksheet.write(row, col + 1, f"{self.completed_date}", wrap_format)
             row += 1
 
         worksheet.write(row, col, "")
@@ -691,25 +709,25 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         worksheet.write(row, col, "Campaign Details", bold_format)
         row += 1
         worksheet.write(row, col, "From", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.cam_from_address), wrap_format)
+        worksheet.write(row, col + 1, f"{self.cam_from_address}", wrap_format)
         row += 1
         worksheet.write(row, col, "Subject", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.cam_subject_line), wrap_format)
+        worksheet.write(row, col + 1, f"{self.cam_subject_line}", wrap_format)
         row += 1
         worksheet.write(row, col, "Phish URL", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.cam_url), wrap_format)
+        worksheet.write(row, col + 1, f"{self.cam_url}", wrap_format)
         row += 1
         worksheet.write(row, col, "Redirect URL", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.cam_redirect_url), wrap_format)
+        worksheet.write(row, col + 1, f"{self.cam_redirect_url}", wrap_format)
         row += 1
         worksheet.write(row, col, "Attachment(s)", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.cam_template_attachments), wrap_format)
+        worksheet.write(row, col + 1, f"{self.cam_template_attachments}", wrap_format)
         row += 1
         worksheet.write(row, col, "Captured Passwords", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.cam_capturing_credentials), wrap_format)
+        worksheet.write(row, col + 1, f"{self.cam_capturing_credentials}", wrap_format)
         row += 1
         worksheet.write(row, col, "Stored Passwords", bold_format)
-        worksheet.write(row, col+1, "{}".format(self.cam_capturing_passwords), wrap_format)
+        worksheet.write(row, col + 1, f"{self.cam_capturing_passwords}", wrap_format)
         row += 1
 
         worksheet.write(row, col, "")
@@ -719,37 +737,37 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         worksheet.write(row, col, "High Level Results", bold_format)
         row += 1
         worksheet.write(row, col, "Total Targets", bold_format)
-        worksheet.write(row, col+1, self.total_targets, num_format)
+        worksheet.write(row, col + 1, self.total_targets, num_format)
         row += 1
 
         worksheet.write(row, col, "The following totals indicate how many events of each type Gophish recorded:", wrap_format)
         row += 1
         worksheet.write(row, col, "Total Opened Events", bold_format)
-        worksheet.write_number(row, col+1, self.total_opened, num_format)
+        worksheet.write_number(row, col + 1, self.total_opened, num_format)
         row += 1
         worksheet.write(row, col, "Total Clicked Events", bold_format)
-        worksheet.write_number(row, col+1, self.total_clicked, num_format)
+        worksheet.write_number(row, col + 1, self.total_clicked, num_format)
         row += 1
         worksheet.write(row, col, "Total Submitted Data Events", bold_format)
-        worksheet.write(row, col+1, "", wrap_format)
+        worksheet.write(row, col + 1, "", wrap_format)
         row += 1
         worksheet.write(row, col, "Total Report Events", bold_format)
-        worksheet.write_number(row, col+1, self.total_reported, num_format)
+        worksheet.write_number(row, col + 1, self.total_reported, num_format)
         row += 1
 
         worksheet.write(row, col, "The following totals indicate how many targets participated in each event type:", wrap_format)
         row += 1
         worksheet.write(row, col, "Individuals Who Opened", bold_format)
-        worksheet.write_number(row, col+1, self.total_unique_opened, num_format)
+        worksheet.write_number(row, col + 1, self.total_unique_opened, num_format)
         row += 1
         worksheet.write(row, col, "Individuals Who Clicked", bold_format)
-        worksheet.write_number(row, col+1, self.total_unique_clicked, num_format)
+        worksheet.write_number(row, col + 1, self.total_unique_clicked, num_format)
         row += 1
         worksheet.write(row, col, "Individuals Who Submitted Data", bold_format)
-        worksheet.write_number(row, col+1, self.total_unique_submitted, num_format)
+        worksheet.write_number(row, col + 1, self.total_unique_submitted, num_format)
         row += 1
         worksheet.write(row, col, "Individuals Who Reported", bold_format)
-        worksheet.write_number(row, col+1, self.total_unique_reported, num_format)
+        worksheet.write_number(row, col + 1, self.total_unique_reported, num_format)
         row += 1
 
         worksheet.write(row, col, "")
@@ -777,36 +795,36 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         for target in ordered_results:
             worksheet.write(row, col, target['email'], wrap_format)
             if target['opened']:
-                worksheet.write_boolean(row, col+1, target['opened'], true_format)
+                worksheet.write_boolean(row, col + 1, target['opened'], true_format)
             else:
-                worksheet.write_boolean(row, col+1, target['opened'], false_format)
+                worksheet.write_boolean(row, col + 1, target['opened'], false_format)
             if target['clicked']:
-                worksheet.write_boolean(row, col+2, target['clicked'], true_format)
+                worksheet.write_boolean(row, col + 2, target['clicked'], true_format)
             else:
-                worksheet.write_boolean(row, col+2, target['clicked'], false_format)
+                worksheet.write_boolean(row, col + 2, target['clicked'], false_format)
             if target['submitted']:
-                worksheet.write_boolean(row, col+3, target['submitted'], true_format)
+                worksheet.write_boolean(row, col + 3, target['submitted'], true_format)
             else:
-                worksheet.write_boolean(row, col+3, target['submitted'], false_format)
+                worksheet.write_boolean(row, col + 3, target['submitted'], false_format)
             if target['reported']:
-                worksheet.write_boolean(row, col+4, target['reported'], true_format)
+                worksheet.write_boolean(row, col + 4, target['reported'], true_format)
             else:
-                worksheet.write_boolean(row, col+4, target['reported'], false_format)
+                worksheet.write_boolean(row, col + 4, target['reported'], false_format)
             if target['email'] in self.targets_clicked:
                 for event in self.timeline:
                     if event.message == "Clicked Link" and event.email == target['email']:
                         user_agent = parse(event.details['browser']['user-agent'])
                         browser_details = user_agent.browser.family + " " + \
-                                          user_agent.browser.version_string
+                            user_agent.browser.version_string
                         os_details = user_agent.os.family + " " + user_agent.os.version_string
-                        worksheet.write(row, col+5, browser_details, wrap_format)
-                        worksheet.write(row, col+6, os_details, wrap_format)
+                        worksheet.write(row, col + 5, browser_details, wrap_format)
+                        worksheet.write(row, col + 6, os_details, wrap_format)
             else:
-                worksheet.write(row, col+5, "N/A", wrap_format)
-                worksheet.write(row, col+6, "N/A", wrap_format)
+                worksheet.write(row, col + 5, "N/A", wrap_format)
+                worksheet.write(row, col + 6, "N/A", wrap_format)
             row += 1
             target_counter += 1
-            print("[+] Created row for {} of {}.".format(target_counter, self.total_targets))
+            print(f"[+] Created row for {target_counter} of {self.total_targets}.")
 
         print("[+] Finished writing events summary...")
         print("[+] Detailed results analysis is next and will take some time if you had a lot of targets...")
@@ -825,7 +843,10 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         for target in self.results:
             # Only create a Detailed Analysis section for targets with clicks
             if target.email in self.targets_clicked:
-                worksheet.write(row, col, "{} {}".format(target.first_name, target.last_name), bold_format)
+                position = ""
+                if target.position:
+                    position = f"({target.position})"
+                worksheet.write(row, col, f"{target.first_name} {target.last_name} {position}", bold_format)
                 row += 1
                 worksheet.write(row, col, target.email, wrap_format)
                 row += 1
@@ -837,13 +858,13 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
                         sent_date = temp[0]
                         sent_time = temp[1].split('.')[0]
                         # Record the email sent date and time in the report
-                        worksheet.write(row, col, "Sent on {} at {}".format(sent_date.replace(",", ""), sent_time), wrap_format)
+                        worksheet.write(row, col, f"Sent on {sent_date.replace(',', '')} at {sent_time}", wrap_format)
                         row += 1
 
                     if event.message == "Email Opened" and event.email == target.email:
                         # Record the email preview date and time in the report
                         temp = event.time.split('T')
-                        worksheet.write(row, col, "Email Preview at {} {}".format(temp[0], temp[1].split('.')[0]), wrap_format)
+                        worksheet.write(row, col, f"Email Preview at {temp[0]} {temp[1].split('.')[0]}", wrap_format)
                         row += 1
 
                     if event.message == "Clicked Link" and event.email == target.email:
@@ -858,27 +879,27 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
                         row += 1
 
                         temp = event.time.split('T')
-                        worksheet.write(row, col, "{} {}".format(temp[0], temp[1].split('.')[0]), wrap_format)
+                        worksheet.write(row, col, f"{temp[0]} {temp[1].split('.')[0]}", wrap_format)
 
                         # Check if browser IP matches the target's IP and record result
                         ip_comparison = self.compare_ip_addresses(target.ip,
                                                                   event.details['browser']['address'],
                                                                   self.verbose)
-                        worksheet.write(row, col+1, "{}".format(ip_comparison), wrap_format)
+                        worksheet.write(row, col + 1, f"{ip_comparison}", wrap_format)
 
                         # Parse the location data
                         loc = self.geolocate(target, event.details['browser']['address'], self.google)
-                        worksheet.write(row, col+2, loc, wrap_format)
+                        worksheet.write(row, col + 2, loc, wrap_format)
 
                         # Parse the user-agent string and add browser and OS details
                         user_agent = parse(event.details['browser']['user-agent'])
                         browser_details = user_agent.browser.family + " " + \
-                                          user_agent.browser.version_string
-                        worksheet.write(row, col+3, browser_details, wrap_format)
+                            user_agent.browser.version_string
+                        worksheet.write(row, col + 3, browser_details, wrap_format)
                         self.browsers.append(browser_details)
 
                         os_details = user_agent.os.family + " " + user_agent.os.version_string
-                        worksheet.write(row, col+4, os_details, wrap_format)
+                        worksheet.write(row, col + 4, os_details, wrap_format)
                         self.operating_systems.append(os_details)
                         row += 1
 
@@ -898,20 +919,20 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
                         row += 1
 
                         temp = event.time.split('T')
-                        worksheet.write(row, col, "{} {}".format(temp[0], temp[1].split('.')[0]), wrap_format)
+                        worksheet.write(row, col, f"{temp[0]} {temp[1].split('.')[0]}", wrap_format)
 
-                        worksheet.write(row, col+1, "{}".format(event.details['browser']['address']), wrap_format)
+                        worksheet.write(row, col + 1, f"{event.details['browser']['address']}", wrap_format)
 
                         loc = self.geolocate(target, event.details['browser']['address'], self.google)
-                        worksheet.write(row, col+2, loc, wrap_format)
+                        worksheet.write(row, col + 2, loc, wrap_format)
 
                         user_agent = parse(event.details['browser']['user-agent'])
                         browser_details = user_agent.browser.family + " " + \
-                                          user_agent.browser.version_string
-                        worksheet.write(row, col+3, browser_details, wrap_format)
+                            user_agent.browser.version_string
+                        worksheet.write(row, col + 3, browser_details, wrap_format)
 
                         os_details = user_agent.os.family + " " + user_agent.os.version_string
-                        worksheet.write(row, col+4, os_details, wrap_format)
+                        worksheet.write(row, col + 4, os_details, wrap_format)
 
                         # Get just the submitted data from the event's payload
                         submitted_data = ""
@@ -920,16 +941,16 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
                         for key, value in data_payload.items():
                             # To get just submitted data, we drop the 'rid' key
                             if not key == "rid":
-                                submitted_data += "{}:{}".format(key, str(value).strip("[").strip("]"))
-                        worksheet.write(row, col+1, submitted_data, wrap_format)
+                                submitted_data += f"{key}:{str(value).strip('[').strip(']')}"
+                        worksheet.write(row, col + 5, submitted_data, wrap_format)
                         row += 1
-                    
+
                 target_counter += 1
-                print("[+] Processed detailed analysis for {} of {}.".format(target_counter, self.total_targets))
+                print(f"[+] Processed detailed analysis for {target_counter} of {self.total_targets}.")
             else:
                 # This target had no clicked or submitted events so move on to next
                 target_counter += 1
-                print("[+] Processed detailed analysis for {} of {}.".format(target_counter, self.total_targets))
+                print(f"[+] Processed detailed analysis for {target_counter} of {self.total_targets}.")
                 continue
             worksheet.write(row, col, "")
             row += 1
@@ -953,9 +974,9 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         row += 1
         counted_browsers = Counter(self.browsers)
         for key, value in counted_browsers.items():
-            worksheet.write(row, col, "{}".format(key), wrap_format)
-            worksheet.write_number(row, col+1, value, num_format)
-            row +=1
+            worksheet.write(row, col, f"{key}", wrap_format)
+            worksheet.write_number(row, col + 1, value, num_format)
+            row += 1
 
         worksheet.write(row, col, "")
         row += 1
@@ -970,9 +991,9 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         row += 1
         counted_os = Counter(self.operating_systems)
         for key, value in counted_os.items():
-            worksheet.write(row, col, "{}".format(key), wrap_format)
-            worksheet.write_number(row, col+1, value, num_format)
-            row +=1
+            worksheet.write(row, col, f"{key}", wrap_format)
+            worksheet.write_number(row, col + 1, value, num_format)
+            row += 1
 
         worksheet.write(row, col, "")
         row += 1
@@ -987,8 +1008,8 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         row += 1
         counted_locations = Counter(self.locations)
         for key, value in counted_locations.items():
-            worksheet.write(row, col, "{}".format(key), wrap_format)
-            worksheet.write_number(row, col+1, value, num_format)
+            worksheet.write(row, col, f"{key}", wrap_format)
+            worksheet.write_number(row, col + 1, value, num_format)
             row += 1
 
         worksheet.write(row, col, "")
@@ -1004,8 +1025,8 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         row += 1
         counted_ip_addresses = Counter(self.ip_addresses)
         for key, value in counted_ip_addresses.items():
-            worksheet.write(row, col, "{}".format(key), wrap_format)
-            worksheet.write_number(row, col+1, value, num_format)
+            worksheet.write(row, col, f"{key}", wrap_format)
+            worksheet.write_number(row, col + 1, value, num_format)
             row += 1
 
         worksheet.write(row, col, "Recorded IPs and Locations:", bold_format)
@@ -1017,12 +1038,12 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
             header_col += 1
         row += 1
         for key, value in self.ip_and_location.items():
-            worksheet.write(row, col, "{}".format(key), wrap_format)
-            worksheet.write(row, col+1, "{}".format(value), wrap_format)
+            worksheet.write(row, col, f"{key}", wrap_format)
+            worksheet.write(row, col + 1, f"{value}", wrap_format)
             row += 1
 
         goreport_xlsx.close()
-        print("[+] Done! Check \'{}\' for your results.".format(self.output_xlsx_report))
+        print(f"[+] Done! Check '{self.output_xlsx_report}' for your results.")
 
     def write_word_report(self):
         """Assemble and output the Word docx file report."""
@@ -1031,7 +1052,7 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         styles = d.styles
 
         # Create a custom styles for table cells
-        style = styles.add_style("Cell Text", WD_STYLE_TYPE.CHARACTER)
+        _ = styles.add_style("Cell Text", WD_STYLE_TYPE.CHARACTER)
         cell_text = d.styles["Cell Text"]
         cell_text_font = cell_text.font
         cell_text_font.name = "Calibri"
@@ -1039,7 +1060,7 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         cell_text_font.bold = True
         cell_text_font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
 
-        style = styles.add_style("Cell Text Hit", WD_STYLE_TYPE.CHARACTER)
+        _ = styles.add_style("Cell Text Hit", WD_STYLE_TYPE.CHARACTER)
         cell_text_hit = d.styles["Cell Text Hit"]
         cell_text_hit_font = cell_text_hit.font
         cell_text_hit_font.name = "Calibri"
@@ -1047,7 +1068,7 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         cell_text_hit_font.bold = True
         cell_text_hit_font.color.rgb = RGBColor(0x00, 0x96, 0x00)
 
-        style = styles.add_style("Cell Text Miss", WD_STYLE_TYPE.CHARACTER)
+        _ = styles.add_style("Cell Text Miss", WD_STYLE_TYPE.CHARACTER)
         cell_text_miss = d.styles["Cell Text Miss"]
         cell_text_miss_font = cell_text_miss.font
         cell_text_miss_font.name = "Calibri"
@@ -1058,64 +1079,57 @@ Make sure your URL and API key are correct. Check HTTP vs HTTPS!".format(CAM_ID)
         # Write a campaign summary at the top of the report
         d.add_heading("Executive Summary", 1)
         p = d.add_paragraph()
-        run = p.add_run("Campaign Results For: {}".format(self.cam_name))
+        run = p.add_run(f"Campaign Results For: {self.cam_name}")
         run.bold = True
         # Runs are basically "runs" of text and must be aligned like we want
         # them aligned in the report -- thus they are pushed left
         if self.cam_status == "Completed":
-            completed_status = "Completed:\t{} on {}".format(self.completed_date.split("T")[1].split(".")[0],
-                                                             self.completed_date.split("T")[0])
+            completed_status = f"Completed:\t{self.completed_date.split('T')[1].split('.')[0]} on {self.completed_date.split('T')[0]}"
         else:
             completed_status = "Still Active"
-        p.add_run("""
-Status: {}
-Created: {} on {}
-Started: {} on {}
-Completed: {}
+        p.add_run(f"""
+Status: {self.cam_status}
+Created: {self.created_date.split('T')[1].split('.')[0]} on {self.created_date.split('T')[0]}
+Started: {self.launch_date.split('T')[1].split('.')[0]} on {self.launch_date.split('T')[0]}
+Completed: {completed_status}
 
-""".format(self.cam_status, self.created_date.split("T")[1].split(".")[0], self.created_date.split("T")[0],
-           self.launch_date.split("T")[1].split(".")[0], self.launch_date.split("T")[0], completed_status)) 
+""")
         if self.cam_status == "Completed":
             print()
 
         # Write the campaign details -- email details and template settings
         run = p.add_run("Campaign Details")
         run.bold = True
-        p.add_run("""
-From: {}
-Subject: {}
-Phish URL: {}
-Redirect URL: {}
-Attachment(s): {}
-Captured Credentials: {}
-Stored Passwords: {}
+        p.add_run(f"""
+From: {self.cam_from_address}
+Subject: {self.cam_subject_line}
+Phish URL: {self.cam_url}
+Redirect URL: {self.cam_redirect_url}
+Attachment(s): {self.cam_template_attachments}
+Captured Credentials: {self.cam_capturing_credentials}
+Stored Passwords: {self.cam_capturing_passwords}
 
-""".format(self.cam_from_address, self.cam_subject_line, self.cam_url,
-           self.cam_redirect_url, self.cam_template_attachments, self.cam_capturing_credentials,
-           self.cam_capturing_passwords))
+""")
 
         # Write a high level summary for stats
         run = p.add_run("High Level Results")
         run.bold = True
-        p.add_run("""
-Total Targets: {}
+        p.add_run(f"""
+Total Targets: {self.total_targets}
 
 The following totals indicate how many events of each type Gophish recorded:
-Total Open Events: {}
-Total Click Events: {}
-Total Report Events: {}
-Total Submitted Data Events: {}
+Total Open Events: {self.total_opened}
+Total Click Events: {self.total_clicked}
+Total Report Events: {self.total_reported}
+Total Submitted Data Events: {self.total_submitted}
 
 The following totals indicate how many targets participated in each event type:
-Individuals Who Opened: {}
-Individuals Who Clicked: {}
-Individuals Who Reported: {}
-Individuals Who Submitted: {}
+Individuals Who Opened: {self.total_unique_opened}
+Individuals Who Clicked: {self.total_unique_clicked}
+Individuals Who Reported: {self.total_unique_reported}
+Individuals Who Submitted: {self.total_unique_submitted}
 
-""".format(self.total_targets, self.total_opened, self.total_clicked, self.total_reported,
-           self.total_submitted, self.total_unique_opened, self.total_unique_clicked,
-           self.total_unique_reported, self.total_unique_submitted))
-
+""")
         d.add_page_break()
 
         print("[+] Finished writing high level summary...")
@@ -1160,7 +1174,7 @@ Individuals Who Submitted: {}
         ordered_results = sorted(self.campaign_results_summary, key=lambda k: k['email'])
         for target in ordered_results:
             email_cell = table.cell(counter, 0)
-            email_cell.text = "{}".format(target['email'])
+            email_cell.text = f"{target['email']}"
 
             temp_cell = table.cell(counter, 1)
             if target['opened']:
@@ -1191,9 +1205,9 @@ Individuals Who Submitted: {}
                     if event.message == "Clicked Link" and event.email == target['email']:
                         user_agent = parse(event.details['browser']['user-agent'])
                         browser_details = user_agent.browser.family + " " + \
-                                          user_agent.browser.version_string
+                            user_agent.browser.version_string
                         os_details = user_agent.os.family + " " + \
-                                     user_agent.os.version_string
+                            user_agent.os.version_string
                         temp_cell = table.cell(counter, 5)
                         temp_cell.text = os_details
                         temp_cell = table.cell(counter, 6)
@@ -1205,8 +1219,7 @@ Individuals Who Submitted: {}
                 temp_cell.text = "N/A"
             counter += 1
             target_counter += 1
-            print("[+] Created table entry for {} of {}.".format(
-                target_counter, self.total_targets))
+            print(f"[+] Created table entry for {target_counter} of {self.total_targets}.")
 
         d.add_page_break()
 
@@ -1223,7 +1236,10 @@ Individuals Who Submitted: {}
                 clicked_counter = 1
                 submitted_counter = 1
                 # Create section starting with a header with the first and last name
-                d.add_heading("{} {}".format(target.first_name, target.last_name), 2)
+                position = ""
+                if target.position:
+                    position = f"({target.position})"
+                d.add_heading(f"{target.first_name} {target.last_name} {position}", 2)
                 p = d.add_paragraph(target.email)
                 p = d.add_paragraph()
                 # Save a spot to record the email sent date and time in the report
@@ -1237,7 +1253,7 @@ Individuals Who Submitted: {}
                         sent_date = temp[0]
                         sent_time = temp[1].split('.')[0]
                         # Record the email sent date and time in the run created earlier
-                        email_sent_run.text = "Email sent on {} at {}".format(sent_date, sent_time)
+                        email_sent_run.text = f"Email sent on {sent_date} at {sent_time}"
 
                     if event.message == "Email Opened" and event.email == target.email:
                         if opened_counter == 1:
@@ -1312,7 +1328,7 @@ Individuals Who Submitted: {}
                         # Parse the user-agent string for browser and OS details
                         user_agent = parse(event.details['browser']['user-agent'])
                         browser_details = user_agent.browser.family + " " + \
-                                          user_agent.browser.version_string
+                            user_agent.browser.version_string
                         browser = clicked_table.cell(clicked_counter, 3)
                         browser.text = browser_details
                         self.browsers.append(browser_details)
@@ -1377,13 +1393,13 @@ Individuals Who Submitted: {}
                         # Parse the user-agent string and add browser and OS details
                         user_agent = parse(event.details['browser']['user-agent'])
                         browser_details = user_agent.browser.family + " " + \
-                                          user_agent.browser.version_string
+                            user_agent.browser.version_string
                         browser = submitted_table.cell(submitted_counter, 3)
                         browser.text = browser_details
 
                         op_sys = submitted_table.cell(submitted_counter, 4)
                         os_details = user_agent.os.family + " " + user_agent.os.version_string
-                        op_sys.text = "{}".format(os_details)
+                        op_sys.text = f"{os_details}"
 
                         # Get just the submitted data from the event's payload
                         submitted_data = ""
@@ -1393,19 +1409,17 @@ Individuals Who Submitted: {}
                         for key, value in data_payload.items():
                             # To get just submitted data, we drop the 'rid' key
                             if not key == "rid":
-                                submitted_data += "{}:{}   ".format(
-                                    key, str(value).strip("[").strip("]"))
-                        data.text = "{}".format(submitted_data)
+                                submitted_data += f"{key}:{str(value).strip('[').strip(']')}   "
+                        data.text = f"{submitted_data}"
                         submitted_counter += 1
                 target_counter += 1
-                print("[+] Processed detailed analysis for {} of {}.".format(
-                    target_counter, self.total_targets))
+                print(f"[+] Processed detailed analysis for {target_counter} of {self.total_targets}.")
 
                 d.add_page_break()
             else:
                 # This target had no clicked or submitted events so move on to next
                 target_counter += 1
-                print("[+] Processed detailed analysis for {} of {}.".format(target_counter, self.total_targets))
+                print(f"[+] Processed detailed analysis for {target_counter} of {self.total_targets}.")
                 continue
 
         print("[+] Finished writing Detailed Analysis section...")
@@ -1492,10 +1506,10 @@ Individuals Who Submitted: {}
         for key, value in counted_browsers.items():
             browser_table.add_row()
             cell = browser_table.cell(counter, 0)
-            cell.text = "{}".format(key)
+            cell.text = f"{key}"
 
             cell = browser_table.cell(counter, 1)
-            cell.text = "{}".format(value)
+            cell.text = f"{value}"
             counter += 1
 
         counter = 1
@@ -1503,10 +1517,10 @@ Individuals Who Submitted: {}
         for key, value in counted_os.items():
             os_table.add_row()
             cell = os_table.cell(counter, 0)
-            cell.text = "{}".format(key)
+            cell.text = f"{key}"
 
             cell = os_table.cell(counter, 1)
-            cell.text = "{}".format(value)
+            cell.text = f"{value}"
             counter += 1
 
         counter = 1
@@ -1514,10 +1528,10 @@ Individuals Who Submitted: {}
         for key, value in counted_locations.items():
             location_table.add_row()
             cell = location_table.cell(counter, 0)
-            cell.text = "{}".format(key)
+            cell.text = f"{key}"
 
             cell = location_table.cell(counter, 1)
-            cell.text = "{}".format(value)
+            cell.text = f"{value}"
             counter += 1
 
         counter = 1
@@ -1525,25 +1539,25 @@ Individuals Who Submitted: {}
         for key, value in counted_ip_addresses.items():
             ip_add_table.add_row()
             cell = ip_add_table.cell(counter, 0)
-            cell.text = "{}".format(key)
+            cell.text = f"{key}"
 
             cell = ip_add_table.cell(counter, 1)
-            cell.text = "{}".format(value)
+            cell.text = f"{value}"
             counter += 1
 
         counter = 1
         for key, value in self.ip_and_location.items():
             ip_loc_table.add_row()
             cell = ip_loc_table.cell(counter, 0)
-            cell.text = "{}".format(key)
+            cell.text = f"{key}"
 
             cell = ip_loc_table.cell(counter, 1)
-            cell.text = "{}".format(value)
+            cell.text = f"{value}"
             counter += 1
 
         # Finalize document and save it as the value of output_word_report
-        d.save("{}".format(self.output_word_report))
-        print("[+] Done! Check \"{}\" for your results.".format(self.output_word_report))
+        d.save(f"{self.output_word_report}")
+        print(f"[+] Done! Check \"{self.output_word_report}\" for your results.")
 
     def config_section_map(self, config_parser, section):
         """This function helps by reading accepting a config file section, from gophish.config,
@@ -1555,8 +1569,8 @@ Individuals Who Submitted: {}
             try:
                 section_dict[option] = config_parser.get(section, option)
                 if section_dict[option] == -1:
-                    print("[-] Skipping: {}".format(option))
+                    print(f"[-] Skipping: {option}")
             except:
-                print("[!] There was an error with: {}".format(option))
+                print(f"[!] There was an error with: {option}")
                 section_dict[option] = None
         return section_dict
