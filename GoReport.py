@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Name:      GoReport v3.0
+Name:      GoReport v3.1
 Author:    Christopher Maddalena
 
 This is part script and part class for interfacing with the GoPhish API. You provide an API key
-and host (e.g. https://ip:port) in a gophish.config file for the connection.
+and host (e.g. https://ip:port) in a ``gophish.config`` file for the connection.
 
-Then provide a campaign ID as a command line argument along with your preference for the report
-type: python3 goreport.py --id 36 --format word
+Then provide a campaign ID as a command line argument along with your preference for the
+report type: python3 goreport.py --id 36 --format word
 
 The results will be fetched and put through additional processing. An Excel xlsx or Word docx file
 is created with all of the campaign details and some of the settings that may be of interest
@@ -17,8 +17,11 @@ the browser user-agents and IP addresses, to generate statistics for browser ver
 systems, and locations.
 """
 
-from lib import banners, goreport
+# 3rd Party Libraries
 import click
+
+# Goreport Libraries
+from lib import banners, goreport
 
 
 # Setup an AliasedGroup for CLICK
@@ -45,8 +48,9 @@ class AliasedGroup(click.Group):
 
 # Create the help option for CLICK
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
-@click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
 
+
+@click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
 def GoReport():
     """Everything starts here."""
     pass
@@ -89,6 +93,7 @@ def parse_options(self, id, format, combine, complete, config, google, verbose):
     gophish = goreport.Goreport(format, config, google, verbose)
     # Execute reporting for the provided list of IDs
     gophish.run(id, combine, complete)
+
 
 if __name__ == '__main__':
     parse_options()
