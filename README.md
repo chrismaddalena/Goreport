@@ -49,13 +49,13 @@ geolocate_key: <GEOLOCATE_API_KEY>
 
 ### A Basic Command
 
-`python3 Goreport.py --id 26 --format excel`
+`python3 GoReport.py --id 26 --format excel`
 
 That would fetch the results of campaign 26 from https://localhost:3333/api/campaigns/26/?api_key=<Your_API_Key> and output the results to an xlsx file.
 
 Multiple IDs can be provided at one time for multiple reports. The IDs can be provided using a comma-separated list, a range, or both.
 
-Example: `python3 Goreport.py --id 26,29-33,54 --format csv`
+Example: `python3 GoReport.py --id 26,29-33,54 --format csv`
 
 ### Changing Config Files
 
@@ -63,13 +63,13 @@ If you use multiple Gophish user accounts or servers, then you will have multipl
 
 You might use this option if you have, for example, three phishing servers running Gophish. You could setup three config files, each with a different Gophish API key, and then use them as needed.
 
-Example: `python3 Goreport.py --id 26,29-33,54 --format csv --config phish_server_2.config`
+Example: `python3 GoReport.py --id 26,29-33,54 --format csv --config phish_server_2.config`
 
 ### Combining Reports
 
 If you ran multiple campaigns using the same settings for different target groups, you may wish to run Goreport against these campaigns all at once and then combine the results into one report. This can be accomplished by adding Goreports `--combine` flag.
 
-Example: `python3 Goreport.py --id 26,29-33,54 --format excel --combine`
+Example: `python3 GoReport.py --id 26,29-33,54 --format excel --combine`
 
 This command would collect the results for campaigns 26, 29, 30, 31, 32, 33, and 54. Normally, Goreport would output seven xlsx files, but the addition of `--combine` tells Goreport to combine the results and output just one report as if they were all one large campaign.
 
